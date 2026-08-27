@@ -57,6 +57,11 @@ end
 local scriptUsers = {}
 local myPlayer = Players.LocalPlayer
 local active = {}
+local stunned = {}
+local spinning = {}
+local cd = {}
+local kicked = {}
+local banned = {}
 
 local function addUser(p)
     if not scriptUsers[p.UserId] then
@@ -117,28 +122,74 @@ local function getAll()
     return list
 end
 
+-- ==================== МГНОВЕННЫЙ /rm ====================
 local function stopAll()
+    -- Останавливаем все активные процессы
     for _, d in pairs(active) do
         if d.conn then pcall(d.conn.Disconnect, d.conn) end
         if d.run then d.run = false end
     end
     active = {}
+    
+    -- Останавливаем вращения
+    for _, p in pairs(spinning) do
+        p.run = false
+    end
+    spinning = {}
+    
+    -- Снимаем оглушения
+    for _, d in pairs(stunned) do
+        if d and d.speed and d.jump then
+            -- Данные уже не нужны
+        end
+    end
+    stunned = {}
+    
+    -- Сбрасываем КД
+    cd = {}
+    
+    -- Снимаем заморозку и возвращаем скорость
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
+            if hrp then 
+                hrp.Anchored = false
+                hrp.CFrame = CFrame.new(hrp.Position)
+            end
             local hum = p.Character:FindFirstChild("Humanoid")
             if hum then
                 hum.WalkSpeed = 16
                 hum.JumpPower = 50
+                hum.Sit = false
+            end
+            -- Удаляем BodyVelocity
+            for _, v in pairs(p.Character:GetChildren()) do
+                if v:IsA("BodyVelocity") then v:Destroy() end
             end
         end
     end
-    local b = Lighting:FindFirstChild("SpidiWarp")
-    if b then b:Destroy() end
-    send("🛑 <b>Все процессы остановлены!</b>")
+    
+    -- Убираем блюр
+    local blur = Lighting:FindFirstChild("SpidiWarp")
+    if blur then blur:Destroy() end
+    
+    -- Убираем музыку
+    local music = SoundService:FindFirstChild("ClientMusic")
+    if music then
+        music:Stop()
+        music:Destroy()
+    end
+    
+    -- Сбрасываем камеру
+    local cam = Workspace.CurrentCamera
+    if cam then
+        cam.CameraType = Enum.CameraType.Custom
+    end
+    
+    send("🛑 <b>ВСЕ ПРОЦЕССЫ ОСТАНОВЛЕНЫ!</b>\n✅ Память обнулена до заводских настроек")
 end
 
+-- ==================== МУЗЫКА ====================
 local function playMusic(id)
     local old = SoundService:FindFirstChild("ClientMusic")
     if old then old:Destroy() end
@@ -161,7 +212,6 @@ local function stopMusic()
     return false
 end
 
-local cd = {}
 local function canSend(p)
     local id = p.UserId
     local last = cd[id] or 0
@@ -210,7 +260,6 @@ local function say(p, msg)
     end
 end
 
-local stunned = {}
 local function stun(p)
     local char = p.Character
     if not char then return end
@@ -246,7 +295,6 @@ local function fling(p)
     hrp.AssemblyLinearVelocity = Vector3.new(math.random(200,400)*dx, math.random(300,500), math.random(200,400)*dz)
 end
 
-local spinning = {}
 local function spin(p, speed)
     speed = speed or 1
     speed = math.clamp(speed, 0.5, 10)
@@ -330,7 +378,7 @@ local function handle(cmd, args)
     local info = "👤 Hacker228\n🔗 https://www.roblox.com/games/"..game.PlaceId
     
     if cmd == "start" then
-        send("✅ Spidi v14 активирован!\n"..info)
+        send("✅ Spidi v15 активирован!\n"..info)
         return
     end
     
@@ -680,10 +728,9 @@ local function poll()
             for _, upd in pairs(d.result) do
                 if upd.message and upd.message.text then
                     local msg = upd.message
-                    if upd.update_id <= lastId then end
                     if not CHAT_ID then
                         CHAT_ID = msg.chat.id
-                        send("✅ Spidi v14 запущен!\n👤 Hacker228")
+                        send("✅ Spidi v15 запущен!\n👤 Hacker228")
                     end
                     local text = msg.text
                     if text:sub(1,1) == "/" then
@@ -710,5 +757,5 @@ end)
 wait(3)
 getChat()
 if CHAT_ID then
-    send("✅ Spidi v14 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессов")
+    send("✅ Spidi v15 запущен!\n👤 Hacker228\n/players - пользователи\n/pc - все игроки\n/rm - стоп процессов")
 end
