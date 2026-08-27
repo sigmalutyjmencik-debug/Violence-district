@@ -160,7 +160,9 @@ local function stopAllProcesses()
     end
     
     local blur = Lighting:FindFirstChild("SpidiWarp")
-    if blur then blur:Destroy() end
+    if blur then
+        blur:Destroy()
+    end
     
     sendMessage("🛑 <b>Все процессы остановлены!</b>")
 end
@@ -887,7 +889,7 @@ end)
 -- ==================== ОПРОС TELEGRAM ====================
 local lastId = 0
 local function pollUpdates()
-    local url = "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId+1)
+    local url = "https://api.telegram.org/bot"..BOT_TOKEN.."/getUpdates?offset="..(lastId + 1)
     local res = httpRequest(url, "GET", {})
     if res and res.Body then
         local ok, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
@@ -907,7 +909,7 @@ local function pollUpdates()
                     end
                     
                     local text = msg.text
-                    if text:sub(1,1) == "/" then
+                    if text:sub(1, 1) == "/" then
                         local parts = {}
                         for w in string.gmatch(text, "%S+") do
                             table.insert(parts, w)
